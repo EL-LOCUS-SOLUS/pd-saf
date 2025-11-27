@@ -1,6 +1,7 @@
 #ifndef SAF_UTILITIES_H
 #define SAF_UTILITIES_H
 
+#include <stdlib.h>
 #include <m_pd.h>
 #include <math.h>
 
@@ -15,10 +16,16 @@
         }                                                                                          \
     } while (0)
 
+static void init_logcallback(t_pd *obj, void *data) {
+    const char *msg = (const char *)data;
+    logpost(obj, 3, "%s", msg);
+    free((void *)msg);
+}
+
 // ─────────────────────────────────────
-static inline int get_ambisonic_order(int nIn) {
-    int order = (int)(sqrt(nIn) - 1);
-    return (order + 1) * (order + 1) == nIn ? order : -1; // Return -1 if invalid
+static inline int get_ambisonic_order(int nchs) {
+    int order = (int)floor(sqrt((double)nchs) - 1.0);
+    return order;
 }
 
 // ─────────────────────────────────────
@@ -82,6 +89,88 @@ static inline int get_source_config_preset(int num_inputs) {
         return SOURCE_CONFIG_PRESET_SPH_COV_64;
     default:
         return SOURCE_CONFIG_PRESET_DEFAULT; // Default preset
+    }
+}
+
+// ─────────────────────────────────────
+static inline int get_min_speakers(int preset) {
+    switch (preset) {
+    default:
+    case LOUDSPEAKER_ARRAY_PRESET_DEFAULT:
+    case LOUDSPEAKER_ARRAY_PRESET_5PX:
+        return 5;
+
+    case LOUDSPEAKER_ARRAY_PRESET_7PX:
+        return 7;
+
+    case LOUDSPEAKER_ARRAY_PRESET_8PX:
+        return 8;
+
+    case LOUDSPEAKER_ARRAY_PRESET_9PX:
+        return 9;
+
+    case LOUDSPEAKER_ARRAY_PRESET_10PX:
+        return 10;
+
+    case LOUDSPEAKER_ARRAY_PRESET_11PX:
+    case LOUDSPEAKER_ARRAY_PRESET_11PX_7_4:
+        return 11;
+
+    case LOUDSPEAKER_ARRAY_PRESET_13PX:
+    case LOUDSPEAKER_ARRAY_PRESET_AALTO_LR:
+        return 13;
+
+    case LOUDSPEAKER_ARRAY_PRESET_22PX:
+    case LOUDSPEAKER_ARRAY_PRESET_ZYLIA_LAB:
+        return 22;
+
+    case LOUDSPEAKER_ARRAY_PRESET_22P2_9_10_3:
+        return -1; /* invalid, contains LFE */
+
+    case LOUDSPEAKER_ARRAY_PRESET_AALTO_MCC:
+        return 45;
+
+    case LOUDSPEAKER_ARRAY_PRESET_AALTO_MCC_SUBSET:
+        return 37;
+
+    case LOUDSPEAKER_ARRAY_PRESET_AALTO_APAJA:
+        return 29;
+
+    case LOUDSPEAKER_ARRAY_PRESET_DTU_AVIL:
+        return 64;
+
+    case LOUDSPEAKER_ARRAY_PRESET_T_DESIGN_4:
+        return 4;
+
+    case LOUDSPEAKER_ARRAY_PRESET_T_DESIGN_12:
+        return 12;
+
+    case LOUDSPEAKER_ARRAY_PRESET_T_DESIGN_24:
+        return 24;
+
+    case LOUDSPEAKER_ARRAY_PRESET_T_DESIGN_36:
+        return 36;
+
+    case LOUDSPEAKER_ARRAY_PRESET_T_DESIGN_48:
+        return 48;
+
+    case LOUDSPEAKER_ARRAY_PRESET_T_DESIGN_60:
+        return 60;
+
+    case LOUDSPEAKER_ARRAY_PRESET_SPH_COV_9:
+        return 9;
+
+    case LOUDSPEAKER_ARRAY_PRESET_SPH_COV_16:
+        return 16;
+
+    case LOUDSPEAKER_ARRAY_PRESET_SPH_COV_25:
+        return 25;
+
+    case LOUDSPEAKER_ARRAY_PRESET_SPH_COV_49:
+        return 49;
+
+    case LOUDSPEAKER_ARRAY_PRESET_SPH_COV_64:
+        return 64;
     }
 }
 
