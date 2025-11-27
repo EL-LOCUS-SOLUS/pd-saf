@@ -3,8 +3,8 @@
 #include <m_pd.h>
 #include <g_canvas.h>
 
-#include <ambi_enc.h>
 #include "utilities.h"
+#include <ambi_enc.h>
 
 static t_class *encoder_tilde_class;
 
@@ -38,7 +38,7 @@ typedef struct _pitchshifter_tilde {
 // ─────────────────────────────────────
 static void encoder_tilde_malloc(t_encoder_tilde *x) {
     if (x->aIns) {
-        for (int i = 0; i < x->nIn; i++) {
+        for (int i = 0; i < x->nPreviousIn; i++) {
             if (x->aIns[i]) {
                 freebytes(x->aIns[i], x->nAmbiFrameSize * sizeof(t_sample));
             }
@@ -80,20 +80,20 @@ static void encoder_tilde_malloc(t_encoder_tilde *x) {
 
 // ─────────────────────────────────────
 static void encoder_tilde_set(t_encoder_tilde *x, t_symbol *s, int argc, t_atom *argv) {
-    const char *method = atom_getsymbol(argv)->s_name;
+    const char *method = s->s_name;
     if (strcmp(method, "postscaling") == 0) {
-        int postScaling = atom_getint(argv + 1);
+        int postScaling = atom_getint(argv);
         ambi_enc_setEnablePostScaling(x->hAmbi, postScaling);
     } else if (strcmp(method, "solo") == 0) {
-        int srcIdx = atom_getint(argv + 1) - 1; // Source index
-        int solo = atom_getint(argv + 2);       // Solo status
+        int srcIdx = atom_getint(argv) - 1; // Source index
+        int solo = atom_getint(argv + 1);   // Solo status
         if (solo) {
             ambi_enc_setSourceSolo(x->hAmbi, srcIdx);
         } else {
             ambi_enc_setUnSolo(x->hAmbi);
         }
     } else if (strcmp(method, "normtype") == 0) {
-        int newType = atom_getint(argv + 1);
+        int newType = atom_getint(argv);
         if (newType < 1 || newType > 3) {
             logpost(x, 1, "[saf.encoder~] norm_type must be 1-3");
             logpost(x, 2, "               N3D  = 1");
@@ -103,26 +103,17 @@ static void encoder_tilde_set(t_encoder_tilde *x, t_symbol *s, int argc, t_atom 
         }
         ambi_enc_setNormType(x->hAmbi, newType);
     } else if (strcmp(method, "sourcegain") == 0) {
-        int srcIdx = atom_getint(argv + 1) - 1;  // Source index
-        float newGain = atom_getfloat(argv + 2); // Gain factor
+        int srcIdx = atom_getint(argv) - 1;  // Source index
+        float newGain = atom_getfloat(argv); // Gain factor
         ambi_enc_setSourceGain(x->hAmbi, srcIdx, newGain);
-    // NOTE: Use snake in instead
-    // } else if (strcmp(method, "numsources") == 0) {
-    //     int state = canvas_suspend_dsp();
-    //     int sources = atom_getint(argv + 1);
-    //     ambi_enc_setNumSources(x->hAmbi, sources);
-    //     x->nIn = sources;
-    //     canvas_update_dsp();
-        // canvas_resume_dsp(state);
-    } else {
-        pd_error(x, "[saf.encoder~] Unknown set method: %s", method);
     }
+    ambi_enc_refreshParams(x->hAmbi);
 }
 
 // ─────────────────────────────────────
 void encoder_tilde_set_source(t_encoder_tilde *x, t_floatarg idx, t_floatarg azi, t_floatarg elev) {
     if (idx < 1 || idx - 1 >= x->nIn) {
-        pd_error(x, "[saf.encoder~] Source index %d out of range (0-%d)", (int)idx, x->nIn - 1);
+        pd_error(x, "[saf.encoder~] Source index %d out of range (1-%d)", (int)idx, x->nIn - 1);
         return;
     }
     ambi_enc_setSourceAzi_deg(x->hAmbi, (int)idx - 1, azi);
@@ -229,22 +220,22 @@ t_int *encoder_tilde_perform(t_int *w) {
 
 // ─────────────────────────────────────
 void encoder_tilde_dsp(t_encoder_tilde *x, t_signal **sp) {
-    // This is a mess! Help is you see a better way.
-
     // ambi_enc_getFrameSize has fixed frameSize, for encoder is 64 for
-    // decoder is 128. In the perform method sometimes I need to accumulate samples sometimes I
-    // need to process 2 or more times to avoid change how ambi_enc_ works. I think that in this
-    // way is more safe, once that these functions are tested in the main repo. But maybe worse
-    // to implement the own set of functions.
+    // decoder is 128. In the perform method sometimes I need to accumulate
+    // samples sometimes I need to process 2 or more times to avoid change how
+    // ambi_enc_ works. I think that in this way is more safe, once that these
+    // functions are tested in the main repo. But maybe worse to implement the own
+    // set of functions.
 
-    // Set frame sizes and reset indices
     x->nAmbiFrameSize = ambi_enc_getFrameSize();
     x->nPdFrameSize = sp[0]->s_n;
     x->nOutAccIndex = 0;
     x->nInAccIndex = 0;
 
     x->nIn = x->multichannel ? sp[0]->s_nchans : x->nIn;
-    x->nOrder = get_ambisonic_order(x->nIn);
+    if (x->nOrder < 1) {
+        x->nOrder = 1;
+    }
 
     int sum = x->nIn + x->nOut;
     int sigvecsize = sum + 2;
@@ -253,16 +244,18 @@ void encoder_tilde_dsp(t_encoder_tilde *x, t_signal **sp) {
     if (!x->hAmbiInit) {
         ambi_enc_init(x->hAmbi, sys_getsr());
         ambi_enc_setOutputOrder(x->hAmbi, (SH_ORDERS)x->nOrder);
-        int preset = get_source_config_preset(x->nIn);
-        if (preset == SOURCE_CONFIG_PRESET_DEFAULT) {
-            logpost(x, 3, "[saf.encoder~] default source config preset that is 4 inputs");
-            preset = SOURCE_CONFIG_PRESET_T_DESIGN_4;
-        }
-        ambi_enc_setInputConfigPreset(x->hAmbi, get_source_config_preset(x->nIn));
-
         ambi_enc_setNumSources(x->hAmbi, x->nIn);
+
+        for (int i = 0; i < x->nOut; i++) {
+            float azi = 360.0f / x->nOut * i;
+            ambi_enc_setSourceAzi_deg(x->hAmbi, i, azi);
+            ambi_enc_setSourceElev_deg(x->hAmbi, i, 0);
+        }
+
         if (ambi_enc_getNSHrequired(x->hAmbi) > x->nOut) {
-            pd_error(x, "[saf.encoder~] number of output signals is too low for the %d order.",
+            pd_error(x,
+                     "[saf.encoder~] number of output signals is too low for the %d "
+                     "order.",
                      x->nOrder);
             return;
         }
@@ -270,7 +263,14 @@ void encoder_tilde_dsp(t_encoder_tilde *x, t_signal **sp) {
     }
 
     if (x->nPreviousIn != x->nIn || x->nPreviousOut != x->nOut) {
+        ambi_enc_setNumSources(x->hAmbi, x->nIn);
         encoder_tilde_malloc(x);
+        x->nPreviousIn = x->nIn;
+    }
+
+    if (sp[0]->s_nchans > 1 && !x->multichannel) {
+        pd_error(x, "Multichannel mode is off, but input is multichannel, use '-m' flag");
+        signal_setmultiout(&sp[1], 1);
     }
 
     // add perform method
@@ -295,18 +295,28 @@ void encoder_tilde_dsp(t_encoder_tilde *x, t_signal **sp) {
 
 // ─────────────────────────────────────
 void *encoder_tilde_new(t_symbol *s, int argc, t_atom *argv) {
-    t_encoder_tilde *x = (t_encoder_tilde *)pd_new(encoder_tilde_class);
-    int order = (argc >= 1) ? atom_getint(argv) : 1;
-    int num_sources = (argc >= 2) ? atom_getint(argv + 1) : 1;
-    x->multichannel = (argc >= 3) ? strcmp(atom_getsymbol(argv + 2)->s_name, "-m") == 0 : 0;
     if (argc < 2) {
-        pd_error(x, "[saf.encoder~] Wrong number of arguments, use [saf.encoder~ <ambisonic_order> "
-                    "<num_sources> ");
+        pd_error(NULL, "[saf.encoder~] Wrong number of arguments, use [saf.encoder~ "
+                       "<ambisonic_order> "
+                       "<num_sources>] or [saf.encoder~ 1 -m] for multichannel input");
         return NULL;
     }
 
-    order = order < 1 ? 1 : order;
-    num_sources = num_sources < 1 ? 1 : num_sources;
+    t_encoder_tilde *x = (t_encoder_tilde *)pd_new(encoder_tilde_class);
+    int order = 1;
+    int num_sources = 4;
+    if (argv[1].a_type == A_SYMBOL) {
+        if (strcmp(atom_getsymbol(argv + 1)->s_name, "-m") != 0) {
+            pd_error(x, "[saf.decoder~] Expected '-m' in second argument.");
+            return NULL;
+        }
+        order = (argc >= 1) ? atom_getint(argv) : 1;
+        x->multichannel = 1;
+    } else {
+        order = (argc >= 1) ? atom_getint(argv) : 1;
+        num_sources = (argc >= 2) ? atom_getint(argv + 1) : 1;
+        x->multichannel = 0;
+    }
 
     ambi_enc_create(&x->hAmbi);
     x->nOrder = order;
@@ -325,7 +335,7 @@ void *encoder_tilde_new(t_symbol *s, int argc, t_atom *argv) {
         }
     }
 
-    return (void *)x;
+    return x;
 }
 
 // ─────────────────────────────────────
@@ -372,5 +382,13 @@ void setup_saf0x2eencoder_tilde(void) {
     class_addmethod(encoder_tilde_class, (t_method)encoder_tilde_dsp, gensym("dsp"), A_CANT, 0);
     class_addmethod(encoder_tilde_class, (t_method)encoder_tilde_set_source, gensym("source"),
                     A_DEFFLOAT, A_DEFFLOAT, A_DEFFLOAT, 0);
-    class_addmethod(encoder_tilde_class, (t_method)encoder_tilde_set, gensym("set"), A_GIMME, 0);
+
+    // class_addmethod(encoder_tilde_class, (t_method)encoder_tilde_set, gensym("set"), A_GIMME, 0);
+    class_addmethod(encoder_tilde_class, (t_method)encoder_tilde_set, gensym("postscaling"),
+                    A_GIMME, 0);
+    class_addmethod(encoder_tilde_class, (t_method)encoder_tilde_set, gensym("solo"), A_GIMME, 0);
+    class_addmethod(encoder_tilde_class, (t_method)encoder_tilde_set, gensym("normtype"), A_GIMME,
+                    0);
+    class_addmethod(encoder_tilde_class, (t_method)encoder_tilde_set, gensym("sourcegain"), A_GIMME,
+                    0);
 }

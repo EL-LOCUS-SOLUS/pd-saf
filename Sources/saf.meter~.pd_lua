@@ -20,9 +20,9 @@ function mcmeter:initialize(_, args)
 		elseif arg == "-inchs" then
 			self.inchans = type(args[i + 1]) == "number" and args[i + 1] or 1
 		elseif arg == "-height" then
-			self.height= type(args[i + 1]) == "number" and args[i + 1] or 4
-	    end
-    end
+			self.height = type(args[i + 1]) == "number" and args[i + 1] or 4
+		end
+	end
 	self:set_size(self.width, self.height)
 	return true
 end
@@ -105,7 +105,7 @@ function mcmeter:dsp(samplerate, blocksize, inchans)
 	self.inchans = inchans[1]
 	self.samplerate = samplerate
 	self.width = self.meter_width * self.inchans
-    self:update_args()
+	self:update_args()
 	if self.width < 8 then
 		self.width = 8
 		self.meter_width = math.floor(8 / self.inchans + 0.5)

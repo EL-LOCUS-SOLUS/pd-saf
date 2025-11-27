@@ -3,7 +3,7 @@ local panning = pd.Class:new():register("saf.panning")
 -- ─────────────────────────────────────
 function panning:initialize(_, args)
 	self.inlets = 1
-	self.outlets = 1
+	self.outlets = 2
 	self.repaint_sources = false
 	self.selected = false
 	self.plan_size = 200
@@ -11,11 +11,13 @@ function panning:initialize(_, args)
 	self.sources_size = 3
 	self.margin = 5
 	self.xzview = false
+	self.nspeakers = 4
 
 	-- Define colors with appropriate RGB values
 	self.colors = {
 		background1 = { 19, 47, 80 },
 		background2 = { 27, 55, 87 },
+		speakers = { 255, 255, 0 },
 		lines = { 46, 73, 102 },
 		text = { 127, 145, 162 },
 		sources = { 255, 0, 0 },
@@ -35,7 +37,17 @@ function panning:initialize(_, args)
 			if xzview == 1 then
 				self.xzview = true
 			end
+		elseif arg == "-nspeakers" then
+			self.nspeakers = args[i + 1]
 		end
+	end
+
+	self.speakers_pos = {}
+	for i = 0, self.nspeakers - 1 do
+		local azi = 360 / self.nspeakers * i
+		self.speakers_pos[i + 1] = {}
+		self.speakers_pos[i + 1].azi = azi
+		self.speakers_pos[i + 1].ele = 0
 	end
 
 	self.sources = {}
@@ -88,6 +100,9 @@ function panning:update_args()
 		table.insert(args, self.xzview)
 	end
 
+	table.insert(args, "-nspeakers")
+	table.insert(args, self.nspeakers)
+
 	self:set_args(args)
 end
 
@@ -113,6 +128,23 @@ function panning:in_1_xzview(args)
 		self:set_size(self.plan_size, self.fig_size)
 	end
 end
+
+-- ─────────────────────────────────────
+function panning:in_1_numspeakers(args)
+	local n = args[1]
+	self.nspeakers = n
+
+	self.speakers_pos = {}
+	for i = 0, self.nspeakers - 1 do
+		local azi = 360 / self.nspeakers * i
+		self.speakers_pos[i + 1] = {}
+		self.speakers_pos[i + 1].azi = azi
+		self.speakers_pos[i + 1].ele = 0
+	end
+	self:repaint()
+	self:update_args()
+end
+
 -- ─────────────────────────────────────
 function panning:in_1_source(args)
 	local index = args[1]
@@ -311,14 +343,40 @@ function panning:paint(g)
 		g:stroke_ellipse(center - radius_x, center - radius_y, radius_x * 2, radius_y * 2, 1)
 	end
 
+	-- draw speakers
+	for i = 1, self.nspeakers do
+		local s = self.speakers_pos[i]
+		local azi_deg = s.azi
+		local ele_deg = s.ele
+		local dis = s.dis or 1.0
+
+		local adjusted_radius = (self.plan_size / 2) - self.margin
+		local azi_rad = math.rad(azi_deg)
+		local ele_rad = math.rad(ele_deg)
+
+		local x = -math.cos(ele_rad) * math.sin(azi_rad) * adjusted_radius * dis
+		local y = -math.cos(ele_rad) * math.cos(azi_rad) * adjusted_radius * dis
+		x = x + self.plan_size / 2
+		y = y + self.plan_size / 2
+
+		-- desenha o speaker
+		local speaker_size = 6
+		g:set_color(table.unpack(self.colors.speakers))
+		g:fill_ellipse(x - speaker_size / 2, y - speaker_size / 2, speaker_size, speaker_size)
+
+		-- calcula offset do texto para ficar “para dentro do círculo”
+		local offset = 4
+		local text_x_offset = (x < self.plan_size / 2) and offset or -offset - 6
+		local text_y_offset = (y < self.plan_size / 2) and offset or -offset - 6
+
+		g:set_color(255, 255, 255)
+		g:draw_text(tostring(i), x + text_x_offset, y + text_y_offset, 10, 3)
+	end
+
 	-- -- Text
 	local text_x, text_y = 1, 1
 	g:set_color(table.unpack(self.colors.text))
 	g:draw_text("xy view", text_x, text_y, 50, 1)
-
-	if self.xzview == 0 then
-		return
-	end
 
 	--╭─────────────────────────────────────╮
 	--│              WORLD TWO              │
@@ -378,9 +436,34 @@ function panning:paint(g)
 		-- Text
 		text_x, text_y = 2 + self.plan_size, 1
 		g:set_color(table.unpack(self.colors.text))
-		g:draw_text("not finished yet", text_x, text_y, 50, 1)
-
+		g:draw_text("zy view", text_x, text_y, 50, 1)
 		g:draw_line(self.plan_size, 0, self.plan_size, self.plan_size, 1)
+
+		for i = 1, self.nspeakers do
+			local s = self.speakers_pos[i]
+			local azi_rad = math.rad(s.azi)
+			local ele_rad = math.rad(s.ele)
+			local dis = s.dis or 1.0
+
+			local adjusted_radius = (size_x / 2) - self.margin
+
+			local x = math.cos(ele_rad) * math.sin(azi_rad) * adjusted_radius * dis
+			local z = math.sin(ele_rad) * adjusted_radius * dis
+
+			x = center_x + x
+			z = center_y - z -- invert Z so up is top of circle
+
+			local speaker_size = 6
+			g:set_color(table.unpack(self.colors.speakers))
+			g:fill_ellipse(x - speaker_size / 2, z - speaker_size / 2, speaker_size, speaker_size)
+
+			-- Text label
+			local offset = 4
+			local text_x_offset = (x < center_x) and offset or -offset - 6
+			local text_y_offset = (z < center_y) and offset or -offset - 6
+			g:set_color(255, 255, 255)
+			g:draw_text(tostring(i), x + text_x_offset, z + text_y_offset, 10, 3)
+		end
 	end
 end
 
@@ -397,18 +480,24 @@ function panning:paint_layer_2(g)
 			-- Adjusting the drawing to make the ellipse centered at (x, y)
 			g:set_color(table.unpack(source.color))
 			g:stroke_ellipse(x - (size / 2), y - (size / 2), size, size, 1)
-
-			if self.xzview then
-				g:set_color(table.unpack(source.color))
-				g:stroke_ellipse(x - (size / 2) + self.plan_size, z - (size / 2), size, size, 1)
-			end
-
 			local scale_factor = 0.7
 			g:scale(scale_factor, scale_factor)
 			local text_x, text_y = x - (size / 3), y - (size / 3)
 			g:set_color(table.unpack(self.colors.source_text))
 			g:draw_text(tostring(i), (text_x + 1) / scale_factor, (text_y - 1) / scale_factor, 20, 3)
 			g:reset_transform()
+
+			if self.xzview then
+				g:set_color(table.unpack(source.color))
+				g:stroke_ellipse(x - (size / 2) + self.plan_size, z - (size / 2), size, size, 1)
+				g:scale(scale_factor, scale_factor)
+				text_x = x - (size / 3) + self.plan_size
+				text_y = z - (size / 3)
+				g:set_color(table.unpack(self.colors.source_text))
+				g:draw_text(tostring(i), (text_x + 1) / scale_factor, (text_y - 1) / scale_factor, 20, 3)
+
+				g:reset_transform()
+			end
 		end
 	end
 end
@@ -449,26 +538,14 @@ function panning:paint_layer_3(g)
 				g:set_color(table.unpack(source.color))
 				g:fill_ellipse(x + self.plan_size, z, size, size)
 				g:stroke_ellipse(x + self.plan_size, z, size, size, 1)
-			end
 
-			-- Source index text
-			-- local text_x, text_y = x - (size / 1.5), y - (size / 2)
-			-- g:set_color(table.unpack(self.colors.source_text)) -- Use source_text color
-			-- g:draw_text(tostring(i), text_x, text_y, 10, 3)
-			--
-			-- -- Coordinate text
-			-- text_x, text_y = x + (size / 1), y + (size / 2)
-			-- local scale_factor = 0.7
-			-- g:scale(scale_factor, scale_factor)
-			-- g:set_color(table.unpack(self.colors.source_text)) -- Use source_text color
-			-- g:draw_text(
-			-- 	tostring(math.floor(x)) .. " " .. tostring(math.floor(y)),
-			-- 	text_x / scale_factor,
-			-- 	text_y / scale_factor,
-			-- 	40,
-			-- 	1
-			-- )
-			-- g:reset_transform()
+				-- Draw the number
+				local offset = 4
+				local text_x_offset = (x + self.plan_size < self.plan_size * 1.5) and offset or -offset - 6
+				local text_y_offset = (z < self.plan_size / 2) and offset or -offset - 6
+				g:set_color(255, 255, 255)
+				g:draw_text(tostring(source.id or "?"), x + self.plan_size + text_x_offset, z + text_y_offset, 10, 3)
+			end
 		end
 	end
 end

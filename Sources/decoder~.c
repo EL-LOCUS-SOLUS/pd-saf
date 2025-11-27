@@ -42,7 +42,7 @@ typedef struct _decoder_tilde {
 // ─────────────────────────────────────
 static void decoder_tilde_malloc(t_decoder_tilde *x) {
     if (x->aIns) {
-        for (int i = 0; i < x->nIn; i++) {
+        for (int i = 0; i < x->nPreviousIn; i++) {
             if (x->aIns[i]) {
                 freebytes(x->aIns[i], x->nAmbiFrameSize * sizeof(t_sample));
             }
@@ -86,6 +86,9 @@ static void decoder_tilde_malloc(t_decoder_tilde *x) {
 void *decoder_tilde_initcodec(void *x_void) {
     t_decoder_tilde *x = (t_decoder_tilde *)x_void;
     ambi_dec_initCodec(x->hAmbi);
+    const char *text = "[saf.decoder~] decoder codec initialized!";
+    char *d = strdup(text);
+    pd_queue_mess(&pd_maininstance, &x->obj.te_g.g_pd, (void *)d, init_logcallback);
     logpost(x, 2, "[saf.decoder~] decoder codec initialized!");
     return NULL;
 }
@@ -108,55 +111,52 @@ static void decoder_tilde_get(t_decoder_tilde *x, t_symbol *s, int argc, t_atom 
 
 // ─────────────────────────────────────
 static void decoder_tilde_set(t_decoder_tilde *x, t_symbol *s, int argc, t_atom *argv) {
-    const char *method = atom_getsymbol(argv)->s_name;
+    const char *method = s->s_name;
     if (strcmp(method, "sofafile") == 0) {
+        // Set sofa file
         char path[MAXPDSTRING];
         char *bufptr;
-        t_symbol *sofa_path = atom_getsymbol(argv + 1);
+        t_symbol *sofa_path = atom_getsymbol(argv);
         int fd = canvas_open(x->glist, sofa_path->s_name, "", path, &bufptr, MAXPDSTRING, 1);
         if (fd > 1) {
             char completpath[MAXPDSTRING];
             pd_snprintf(completpath, MAXPDSTRING, "%s/%s", path, sofa_path->s_name);
-            logpost(x, 2, "[saf.binaural~] Opening %s", completpath);
+            logpost(x, 2, "[saf.decoder~] Opening %s", completpath);
             ambi_dec_setSofaFilePath(x->hAmbi, completpath);
+            ambi_dec_setUseDefaultHRIRsflag(x->hAmbi, 0);
         } else {
             pd_error(x->glist, "[saf.decoder~] Could not open sofa file!");
+            ambi_dec_setUseDefaultHRIRsflag(x->hAmbi, 0);
         }
     } else if (strcmp(method, "binaural") == 0) {
-        t_float binaural = atom_getfloat(argv + 1);
+        // Activate the binarualisation decoder
+        t_float binaural = atom_getfloat(argv);
         ambi_dec_setBinauraliseLSflag(x->hAmbi, binaural);
-        logpost(x, 2, "[saf.decoder~] reinit decoder codec...");
         pthread_t initThread;
         pthread_create(&initThread, NULL, decoder_tilde_initcodec, (void *)x);
         pthread_detach(initThread);
-    } else if (strcmp(method, "defaultHRIR") == 0) {
-        t_float defaultHRIR = atom_getfloat(argv + 1);
-        ambi_dec_setUseDefaultHRIRsflag(x->hAmbi, defaultHRIR);
-    } else if (strcmp(method, "masterDecOrder") == 0) {
-        int order = atom_getint(argv + 1);
-        ambi_dec_setMasterDecOrder(x->hAmbi, order);
-    } else if (strcmp(method, "order") == 0) {
-        int order = atom_getint(argv + 1);
-        int bandIdx = atom_getint(argv + 2);
-        ambi_dec_setDecOrder(x->hAmbi, order, bandIdx);
-    } else if (strcmp(method, "orderallbands") == 0) {
+    } else if (strcmp(method, "decoder_order") == 0) {
+        // Using `orderallbands` applies the same Ambisonic order to all frequency bands, resulting
+        // in uniform spatial resolution across the spectrum. High orders improve directional
+        // precision, while low orders produce a more diffuse sound, with consistent localization
+        // regardless of frequency.
         int order = atom_getint(argv + 1);
         ambi_dec_setDecOrderAllBands(x->hAmbi, order);
-    } else if (strcmp(method, "loudspeakerpos") == 0) {
-        int index = atom_getint(argv + 1) - 1;
-        float azi = atom_getfloat(argv + 2);
-        float elev = atom_getfloat(argv + 3);
+    } else if (strcmp(method, "loudspeaker") == 0) {
+        // The `loudspeaker` method sets the azimuth and elevation of a specific loudspeaker,
+        // ensuring accurate spatial rendering of Ambisonic sources.
+        int index = atom_getint(argv) - 1;
+        float azi = atom_getfloat(argv + 1);
+        float elev = atom_getfloat(argv + 2);
         int loudspeakercount = ambi_dec_getNumLoudspeakers(x->hAmbi);
         if (index < 0) {
             pd_error(x, "[saf.decoder~] %d is not a valid speaker index.", index + 1);
             return;
-
         } else if (loudspeakercount >= index) {
             ambi_dec_setLoudspeakerAzi_deg(x->hAmbi, index, azi);
             ambi_dec_setLoudspeakerElev_deg(x->hAmbi, index, elev);
             logpost(x, 3, "[saf.decoder~] Setting loudspeaker position %d to %f %f", index + 1, azi,
                     elev);
-            ambi_dec_refreshSettings(x->hAmbi);
         } else {
             pd_error(x,
                      "[saf.decoder~] Trying to set loudspeaker position %d, but only %d available.",
@@ -164,27 +164,39 @@ static void decoder_tilde_set(t_decoder_tilde *x, t_symbol *s, int argc, t_atom 
             return;
         }
     } else if (strcmp(method, "hrirpreproc") == 0) {
-        int state = atom_getint(argv + 1);
+        // Enabling `hrirpreproc` applies pre-processing to the loaded HRTFs, improving consistency,
+        // phase alignment, and spatial stability during binaural rendering.
+        int state = atom_getint(argv);
         ambi_dec_setEnableHRIRsPreProc(x->hAmbi, state);
-        pthread_t initThread;
-        pthread_create(&initThread, NULL, decoder_tilde_initcodec, (void *)x);
-        pthread_detach(initThread);
-
-    } else if (strcmp(method, "sourcepreset") == 0) {
-        int preset = atom_getint(argv + 1);
-        ambi_dec_setSourcePreset(x->hAmbi, preset);
-    } else if (strcmp(method, "outconfigpreset") == 0) {
-        int preset = atom_getint(argv + 1);
-        ambi_dec_setOutputConfigPreset(x->hAmbi, preset);
-    } else if (strcmp(method, "chorder") == 0) {
-        int order = atom_getint(argv + 1);
+    } else if (strcmp(method, "ch_order") == 0) {
+        // The `chorder` method sets the Ambisonic channel ordering convention (ACN or
+        // Furse-Malham), determining how the Ambisonic channels are arranged in the signal.
+        int order = atom_getint(argv);
         ambi_dec_setChOrder(x->hAmbi, order);
     } else if (strcmp(method, "normtype") == 0) {
-        int type = atom_getint(argv + 1);
+        // The `normtype` method sets the Ambisonic normalization convention (N3D, SN3D, or
+        // Furse-Malham), which defines how the channel amplitudes are scaled and affects the
+        // overall energy and reconstruction of the sound field.
+        int type = atom_getint(argv);
         ambi_dec_setNormType(x->hAmbi, type);
     } else if (strcmp(method, "decmethod") == 0) {
-        t_symbol *low_high = atom_getsymbol(argv + 1);
-        int id = atom_getint(argv + 2);
+        // The `decmethod` method sets the Ambisonic decoding algorithm for either the low- or
+        // high-frequency band, allowing selection between SAD, MMD, EPAD, or AllRAD. The decoders
+        // are reinitialized in a separate thread to apply the change without interrupting audio
+        // processing.
+        // Here’s a concise one-sentence description for each decoding method:
+
+        // * **SAD (Sampling Ambisonic Decoder):** Distributes sound energy to loudspeakers based on
+        // their positions for a simple spatial rendering.
+        // * **MMD (Mode-Matching Decoder):** Matches spherical harmonic modes to the speaker layout
+        // for more accurate localization.
+        // * **EPAD (Energy-Preserving Ambisonic Decoder):** Maintains the total energy of the sound
+        // field, reducing amplitude artifacts.
+        // * **AllRAD (All-Round Ambisonic Decoder):** Optimizes both directional accuracy and
+        // energy preservation across all listening positions.
+
+        t_symbol *low_high = atom_getsymbol(argv);
+        int id = atom_getint(argv + 1);
         if (strcmp(low_high->s_name, "low") == 0) {
             ambi_dec_setDecMethod(x->hAmbi, 0, id);
         } else {
@@ -193,20 +205,22 @@ static void decoder_tilde_set(t_decoder_tilde *x, t_symbol *s, int argc, t_atom 
         pthread_t initThread;
         pthread_create(&initThread, NULL, decoder_tilde_initcodec, (void *)x);
         pthread_detach(initThread);
-    } else if (strcmp(method, "decenablemaxre") == 0) {
+    } else if (strcmp(method, "max-rE") == 0) {
+        // Max-rE weighting improves spatial accuracy and stability, preventing phantom source
+        // splitting and reducing timbral coloration, regardless of listener position or Ambisonic
+        // order. Check 'How to make Ambisonics sound good' from Matthias Frank.
         int index = atom_getint(argv + 1);
         int id = atom_getint(argv + 2);
         ambi_dec_setDecEnableMaxrE(x->hAmbi, index, id);
-    } else if (strcmp(method, "normtype") == 0) {
-        int index = atom_getint(argv + 1);
-        int id = atom_getint(argv + 2);
-        ambi_dec_setDecNormType(x->hAmbi, index, id);
     } else if (strcmp(method, "transitionfreq") == 0) {
+        // The `transitionfreq` method sets the crossover frequency between two Ambisonic decoders,
+        // ensuring a smooth transition and consistent spatial rendering across low and high
+        // frequencies.
         float freq = atom_getfloat(argv + 1);
         ambi_dec_setTransitionFreq(x->hAmbi, freq);
-    } else {
-        pd_error(x, "[saf.decoder~] Unknown set method: %s", method);
     }
+
+    ambi_dec_refreshSettings(x->hAmbi);
 }
 
 // ╭─────────────────────────────────────╮
@@ -314,16 +328,25 @@ void decoder_tilde_dsp(t_decoder_tilde *x, t_signal **sp) {
     x->nInAccIndex = 0;
     x->nIn = x->multichannel ? sp[0]->s_nchans : x->nIn;
 
+    if (sp[0]->s_nchans != x->nIn) {
+        pd_error(x,
+                 "Input signal has %d channels, but decoder is configured for %d channels. Update"
+                 "the ambisonics order!",
+                 sp[0]->s_nchans, x->nIn);
+        return;
+    }
+
     int nOrder = get_ambisonic_order(x->nOut);
     if (nOrder != x->nOrder || !x->hAmbiInit) {
-        int preset = get_loudspeaker_array_preset(x->nOut);
-        if (preset == LOUDSPEAKER_ARRAY_PRESET_DEFAULT) {
-            logpost(x, 3, "[saf.decoder~] default loudspeaker preset is 4 speakers");
-            preset = LOUDSPEAKER_ARRAY_PRESET_T_DESIGN_4;
-        }
         ambi_dec_setNumLoudspeakers(x->hAmbi, x->nOut);
-        ambi_dec_setOutputConfigPreset(x->hAmbi, preset);
-        ambi_dec_setMasterDecOrder(x->hAmbi, nOrder);
+        // add this in another thread
+        if (x->nOrder < 1) {
+            ambi_dec_setMasterDecOrder(x->hAmbi, 1);
+            ambi_dec_setBinauraliseLSflag(x->hAmbi, 1);
+        } else {
+            ambi_dec_setMasterDecOrder(x->hAmbi, nOrder);
+            ambi_dec_setBinauraliseLSflag(x->hAmbi, 0);
+        }
         ambi_dec_setUseDefaultHRIRsflag(x->hAmbi, 1);
         ambi_dec_init(x->hAmbi, sys_getsr());
 
@@ -334,22 +357,16 @@ void decoder_tilde_dsp(t_decoder_tilde *x, t_signal **sp) {
             return;
         }
 
-        logpost(x, 2, "[saf.decoder~] initializing decoder codec...");
+        logpost(x, 3, "[saf.decoder~] initializing decoder codec...");
         pthread_t initThread;
         pthread_create(&initThread, NULL, decoder_tilde_initcodec, (void *)x);
         pthread_detach(initThread);
         x->hAmbiInit = 1;
     }
-    x->nOrder = nOrder;
-
-    // add this in another thread
-    if (x->nOrder < 1) {
-        ambi_dec_setBinauraliseLSflag(x->hAmbi, 1);
-        logpost(x, 2, "[saf.decoder~] Order too low, enabling binauralisation...");
-    }
 
     if (x->nPreviousIn != x->nIn || x->nPreviousOut != x->nOut) {
         decoder_tilde_malloc(x);
+        x->nPreviousIn = x->nIn;
     }
 
     // Initialize memory allocation for inputs and outputs
@@ -377,33 +394,43 @@ void decoder_tilde_dsp(t_decoder_tilde *x, t_signal **sp) {
 void *decoder_tilde_new(t_symbol *s, int argc, t_atom *argv) {
     t_decoder_tilde *x = (t_decoder_tilde *)pd_new(decoder_tilde_class);
     x->glist = canvas_getcurrent(); // TODO: add HRIR reader
-    int order = (argc >= 1) ? atom_getint(argv) : 1;
-    int num_loudspeakers = (argc >= 2) ? atom_getint(argv + 1) : 2;
-    x->multichannel = (argc >= 3) ? strcmp(atom_getsymbol(argv + 2)->s_name, "-m") == 0 : 0;
 
-    if (argc >= 1) {
-        order = atom_getint(argv);
-    }
-    if (argc >= 2) {
-        num_loudspeakers = atom_getint(argv + 1);
+    int order = 1;
+    int num_loudspeakers = 4;
+    if (argv[0].a_type == A_SYMBOL) {
+        if (strcmp(atom_getsymbol(argv)->s_name, "-m") != 0) {
+            pd_error(x, "[saf.decoder~] Expected '-m' in second argument.");
+            return NULL;
+        }
+        // order is decided (and updated inside dsp) by the inputs channels from saf.encoder~
+        order = 1;
+        num_loudspeakers = (argc >= 2) ? atom_getint(argv + 1) : 4;
+        x->multichannel = 1;
+    } else {
+        order = (argc >= 1) ? atom_getint(argv) : 1;
+        num_loudspeakers = (argc >= 2) ? atom_getint(argv + 1) : 1;
+        x->multichannel = 0;
     }
 
     order = order < 0 ? 0 : order;
     num_loudspeakers = num_loudspeakers < 1 ? 1 : num_loudspeakers;
 
-    x->nOrder = (int)floor(sqrt(num_loudspeakers) - 1);
+    x->nOrder = get_ambisonic_order(num_loudspeakers);
     x->nIn = (order + 1) * (order + 1);
     x->nOut = num_loudspeakers;
-    if (x->nOrder < 1) {
-        pd_error(x, "[saf.decoder~] Minimal order is 1 (requires at least 4 loudspeakers). "
-                    "Falling back to binaural mode.");
-    }
     x->hAmbiInit = 0;
     ambi_dec_create(&x->hAmbi);
-
-    int preset = get_loudspeaker_array_preset(x->nOut);
     ambi_dec_setNumLoudspeakers(x->hAmbi, x->nOut);
-    ambi_dec_setOutputConfigPreset(x->hAmbi, preset);
+
+    for (int i = 0; i < x->nOut; i++) {
+        float azi = 360.0f / x->nOut * i;
+        ambi_dec_setLoudspeakerAzi_deg(x->hAmbi, i, azi);
+        ambi_dec_setLoudspeakerElev_deg(x->hAmbi, i, 0);
+    }
+
+    if (x->nOrder < 1) {
+        x->nOut = 2;
+    }
 
     if (x->multichannel) {
         outlet_new(&x->obj, &s_signal);
@@ -457,6 +484,7 @@ void decoder_tilde_free(t_decoder_tilde *x) {
 }
 
 // ─────────────────────────────────────
+// clang-format off
 void setup_saf0x2edecoder_tilde(void) {
     decoder_tilde_class = class_new(gensym("saf.decoder~"), (t_newmethod)decoder_tilde_new,
                                     (t_method)decoder_tilde_free, sizeof(t_decoder_tilde),
@@ -464,6 +492,16 @@ void setup_saf0x2edecoder_tilde(void) {
 
     CLASS_MAINSIGNALIN(decoder_tilde_class, t_decoder_tilde, sample);
     class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_dsp, gensym("dsp"), A_CANT, 0);
-    class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("set"), A_GIMME, 0);
-    class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_get, gensym("get"), A_GIMME, 0);
+
+    class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("sofafile"), A_GIMME, 0);
+    class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("binaural"), A_GIMME, 0);
+    class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("decoder_order"), A_GIMME, 0);
+    class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("loudspeaker"), A_GIMME, 0);
+    class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("hrirpreproc"), A_GIMME, 0);
+    class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("ch_order"), A_GIMME, 0);
+    class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("normtype"), A_GIMME, 0);
+    class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("decmethod"), A_GIMME, 0);
+    class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("max-rE"), A_GIMME, 0);
+    class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("transitionfreq"), A_GIMME, 0);
 }
+
