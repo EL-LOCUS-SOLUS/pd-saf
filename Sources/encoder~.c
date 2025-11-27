@@ -121,7 +121,7 @@ static void encoder_tilde_set(t_encoder_tilde *x, t_symbol *s, int argc, t_atom 
 
 // ─────────────────────────────────────
 void encoder_tilde_set_source(t_encoder_tilde *x, t_floatarg idx, t_floatarg azi, t_floatarg elev) {
-    if (idx < 0 || idx - 1 >= x->nIn) {
+    if (idx < 1 || idx - 1 >= x->nIn) {
         pd_error(x, "[saf.encoder~] Source index %d out of range (0-%d)", (int)idx, x->nIn - 1);
         return;
     }
