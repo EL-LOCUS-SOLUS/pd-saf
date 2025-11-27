@@ -34,3 +34,5 @@ build
 .cache/clangd/index
 compile_commands.json
 Untitled-1.pd
+Resources/.DS_Store
+.DS_Store

@@ -5,6 +5,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 endif()
 
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # ╭──────────────────────────────────────╮
 # │               pd.cmake               │
