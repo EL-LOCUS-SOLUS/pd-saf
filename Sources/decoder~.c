@@ -1,5 +1,4 @@
 #include <string.h>
-#include <math.h>
 #include <pthread.h>
 
 #include <m_pd.h>
