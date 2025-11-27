@@ -48,12 +48,7 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND NOT EMSCRIPTEN)
     # Extrair OpenBLAS se o diretório não existir
     if(NOT EXISTS ${OPENBLAS_SOURCE_DIR})
         message(STATUS "Extracting OpenBLAS...")
-
-        if(WIN32)
-            execute_process(COMMAND ${CMAKE_COMMAND} -E unzip ${OPENBLAS_FILE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-        else()
-            execute_process(COMMAND ${CMAKE_COMMAND} -E tar xzf ${OPENBLAS_FILE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-        endif()
+        execute_process(COMMAND ${CMAKE_COMMAND} -E tar xzf ${OPENBLAS_FILE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 
         # Encontrar a pasta extraída (deve ser "OpenBLAS-<commit-hash>")
         file(GLOB EXTRACTED_DIR "${CMAKE_BINARY_DIR}/OpenBLAS-*")
