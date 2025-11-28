@@ -62,6 +62,10 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND NOT EMSCRIPTEN)
         endif()
     endif()
 
+    set(CMAKE_C_STANDARD 17)
+    set(CMAKE_C_STANDARD_REQUIRED ON)
+    set(CMAKE_C_EXTENSIONS ON)
+
     # Adicionar OpenBLAS ao projeto
     add_subdirectory(${OPENBLAS_SOURCE_DIR} ${CMAKE_BINARY_DIR}/OpenBLAS EXCLUDE_FROM_ALL)
     # Incluir diretórios necessários
@@ -72,9 +76,6 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND NOT EMSCRIPTEN)
     include_directories("${CMAKE_CURRENT_BINARY_DIR}/")
     set(LAPACKE_LIBRARY openblas)
     set(OPENBLAS_LIBRARY openblas)
-    if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND WIN32)
-        target_compile_options(openblas PRIVATE -std=gnu17)
-    endif()
 elseif(EMSCRIPTEN)
     set(OPENBLAS_FILE "${CMAKE_BINARY_DIR}/OpenBLAS.zip")
     set(OPENBLAS_SOURCE_DIR "${CMAKE_BINARY_DIR}/OpenBLAS") # Nome fixo da pasta extraída
