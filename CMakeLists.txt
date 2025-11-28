@@ -182,11 +182,14 @@ if(NOT APPLE AND NOT EMSCRIPTEN)
     target_link_libraries(saf PUBLIC gfortran fftw3f)
 endif()
 
+if(SAF_ENABLE_SIMD)
+    target_compile_options(saf PUBLIC -msse -msse2 -msse3)
+endif()
+
 # ╭──────────────────────────────────────╮
 # │              PD OBJECTS              │
 # ╰──────────────────────────────────────╯
 file(GLOB ENCODER_SRC "${CMAKE_CURRENT_SOURCE_DIR}/Libraries/Spatial_Audio_Framework/examples/src/ambi_enc/*.c")
-
 pd_add_external(saf.encoder~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/encoder~.c;${ENCODER_SRC}" LINK_LIBRARIES saf fftw3f)
 
 # ──────────────────────────────────────
