@@ -297,24 +297,24 @@ void encoder_tilde_dsp(t_encoder_tilde *x, t_signal **sp) {
 void *encoder_tilde_new(t_symbol *s, int argc, t_atom *argv) {
     if (argc < 2) {
         pd_error(NULL, "[saf.encoder~] Wrong number of arguments, use [saf.encoder~ "
-                       "<ambisonic_order> "
-                       "<num_sources>] or [saf.encoder~ 1 -m] for multichannel input");
+                       "<num_sources> <ambisonic_order>] or [saf.encoder~ -m <ambisonic_order>] "
+                       "for multichannel input");
         return NULL;
     }
 
     t_encoder_tilde *x = (t_encoder_tilde *)pd_new(encoder_tilde_class);
     int order = 1;
     int num_sources = 4;
-    if (argv[1].a_type == A_SYMBOL) {
-        if (strcmp(atom_getsymbol(argv + 1)->s_name, "-m") != 0) {
-            pd_error(x, "[saf.decoder~] Expected '-m' in second argument.");
+    if (argv[0].a_type == A_SYMBOL) {
+        if (strcmp(atom_getsymbol(argv)->s_name, "-m") != 0) {
+            pd_error(x, "[saf.encoder~] Expected '-m' in second argument.");
             return NULL;
         }
-        order = (argc >= 1) ? atom_getint(argv) : 1;
+        order = (argc >= 1) ? atom_getint(argv + 1) : 1;
         x->multichannel = 1;
     } else {
-        order = (argc >= 1) ? atom_getint(argv) : 1;
-        num_sources = (argc >= 2) ? atom_getint(argv + 1) : 1;
+        num_sources = (argc >= 2) ? atom_getint(argv) : 1;
+        order = (argc >= 1) ? atom_getint(argv + 1) : 1;
         x->multichannel = 0;
     }
 

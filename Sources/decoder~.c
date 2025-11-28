@@ -1,4 +1,5 @@
 #include <string.h>
+#include <math.h>
 #include <pthread.h>
 
 #include <m_pd.h>
@@ -134,6 +135,7 @@ static void decoder_tilde_set(t_decoder_tilde *x, t_symbol *s, int argc, t_atom 
         pthread_t initThread;
         pthread_create(&initThread, NULL, decoder_tilde_initcodec, (void *)x);
         pthread_detach(initThread);
+
     } else if (strcmp(method, "decoder_order") == 0) {
         // Using `orderallbands` applies the same Ambisonic order to all frequency bands, resulting
         // in uniform spatial resolution across the spectrum. High orders improve directional
@@ -442,6 +444,7 @@ void *decoder_tilde_new(t_symbol *s, int argc, t_atom *argv) {
             outlet_new(&x->obj, &s_signal);
         }
     }
+
     x->aIns = NULL;
     x->aOuts = NULL;
 
