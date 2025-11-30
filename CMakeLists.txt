@@ -196,15 +196,9 @@ endif()
 file(GLOB ENCODER_SRC "${CMAKE_CURRENT_SOURCE_DIR}/Libraries/Spatial_Audio_Framework/examples/src/ambi_enc/*.c")
 pd_add_external(saf.encoder~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/encoder~.c;${ENCODER_SRC}" LINK_LIBRARIES saf fftw3f)
 
-# ──────────────────────────────────────
-file(GLOB saf_dec_SRC "${CMAKE_CURRENT_SOURCE_DIR}/Libraries/Spatial_Audio_Framework/examples/src/ambi_dec/*.c")
-pd_add_external(saf.decoder~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/decoder~.c;${saf_dec_SRC}" LINK_LIBRARIES saf)
-
 # ─────────────────────────────────────
-file(GLOB BINAURAL_TILDE_SOURCE
-     "${CMAKE_CURRENT_SOURCE_DIR}/Libraries/Spatial_Audio_Framework/examples/src/ambi_bin/*.c")
-pd_add_external(saf.binaural~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/binaural~.c;${BINAURAL_TILDE_SOURCE}" LINK_LIBRARIES
-                saf)
+file(GLOB PANNER_SRC "${CMAKE_CURRENT_SOURCE_DIR}/Libraries/Spatial_Audio_Framework/examples/src/panner/*.c")
+pd_add_external(saf.panner~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/panner~.c;${PANNER_SRC}" LINK_LIBRARIES saf)
 
 # ─────────────────────────────────────
 file(GLOB ROOMSIM_TILDE_SOURCE
@@ -213,21 +207,31 @@ file(GLOB ROOMSIM_TILDE_SOURCE
 pd_add_external(saf.roomsim~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/roomsim~.c;${ROOMSIM_TILDE_SOURCE}" LINK_LIBRARIES
                 saf)
 
+# ──────────────────────────────────────
+file(GLOB DECODER_SRC "${CMAKE_CURRENT_SOURCE_DIR}/Libraries/Spatial_Audio_Framework/examples/src/ambi_dec/*.c")
+pd_add_external(saf.decoder~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/decoder~.c;${DECODER_SRC}" LINK_LIBRARIES saf)
+
+# # ───────────────────────────────────── file(GLOB BINAURAL_TILDE_SOURCE
+# "${CMAKE_CURRENT_SOURCE_DIR}/Libraries/Spatial_Audio_Framework/examples/src/ambi_bin/*.c")
+# pd_add_external(saf.binaural~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/binaural~.c;${BINAURAL_TILDE_SOURCE}"
+# LINK_LIBRARIES saf)
+
 # ─────────────────────────────────────
-file(GLOB PITCHSHIFTER_TILDE_SOURCE
-     "${CMAKE_CURRENT_SOURCE_DIR}/Libraries/Spatial_Audio_Framework/examples/src/pitch_shifter/*.c")
-
-pd_add_external(saf.pitchshifter~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/pitchshifter~.c;${PITCHSHIFTER_TILDE_SOURCE}"
-                LINK_LIBRARIES saf)
+# file(GLOB PITCHSHIFTER_TILDE_SOURCE
+# "${CMAKE_CURRENT_SOURCE_DIR}/Libraries/Spatial_Audio_Framework/examples/src/pitch_shifter/*.c")
+#
+# pd_add_external(saf.pitchshifter~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/pitchshifter~.c;${PITCHSHIFTER_TILDE_SOURCE}"
+# LINK_LIBRARIES saf)
 
 # ─────────────────────────────────────
-file(GLOB BINAURALIZER_SOURCE
-     "${CMAKE_CURRENT_SOURCE_DIR}/Libraries/Spatial_Audio_Framework/examples/src/binauraliser/*.c")
+# file(GLOB BINAURALIZER_SOURCE
+# "${CMAKE_CURRENT_SOURCE_DIR}/Libraries/Spatial_Audio_Framework/examples/src/binauraliser/*.c")
+#
+# pd_add_external(saf.binauraliser~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/binauraliser~.c;${BINAURALIZER_SOURCE}"
+# LINK_LIBRARIES saf)
 
-pd_add_external(saf.binauraliser~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/binauraliser~.c;${BINAURALIZER_SOURCE}"
-                LINK_LIBRARIES saf)
-
-pd_add_external(pdsaf "${CMAKE_CURRENT_SOURCE_DIR}/Sources/saf.c" LINK_LIBRARIES saf EXTERNAL_NAME saf)
+file(GLOB SLDOA_TILDE_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/Libraries/Spatial_Audio_Framework/examples/src/sldoa/*.c")
+pd_add_external(saf.sldoa~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/sldoa~.c;${SLDOA_TILDE_SOURCE}" LINK_LIBRARIES saf)
 
 # ╭──────────────────────────────────────╮
 # │              DATA FILES              │
@@ -235,6 +239,6 @@ pd_add_external(pdsaf "${CMAKE_CURRENT_SOURCE_DIR}/Sources/saf.c" LINK_LIBRARIES
 file(GLOB HELP_PATCHES "${CMAKE_CURRENT_SOURCE_DIR}/Resources/*.pd")
 file(GLOB SOUNDS "${CMAKE_CURRENT_SOURCE_DIR}/Resources/*.wav")
 file(GLOB LUA_OBJECTS "${CMAKE_CURRENT_SOURCE_DIR}/Sources/*.pd_lua")
-pd_add_datafile(saf.binaural~ "${HELP_PATCHES}")
-pd_add_datafile(saf.binaural~ "${SOUNDS}")
-pd_add_datafile(saf.binaural~ "${LUA_OBJECTS}")
+pd_add_datafile(saf.encoder~ "${HELP_PATCHES}")
+pd_add_datafile(saf.encoder~ "${SOUNDS}")
+pd_add_datafile(saf.encoder~ "${LUA_OBJECTS}")
