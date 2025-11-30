@@ -1,5 +1,4 @@
 #include <string.h>
-#include <math.h>
 #include <pthread.h>
 
 #include <m_pd.h>
@@ -24,6 +23,9 @@ typedef struct _decoder_tilde {
     t_sample **aOuts;
     t_sample **aInsTmp;
     t_sample **aOutsTmp;
+
+    char sofa_file[MAXPDSTRING];
+    int use_sofa;
 
     int nAmbiFrameSize;
     int nPdFrameSize;
@@ -129,24 +131,29 @@ static void decoder_tilde_set(t_decoder_tilde *x, t_symbol *s, int argc, t_atom 
             char completpath[MAXPDSTRING];
             pd_snprintf(completpath, MAXPDSTRING, "%s/%s", path, sofa_path->s_name);
             logpost(x, 2, "[saf.decoder~] Opening %s", completpath);
+            strcpy(x->sofa_file, completpath);
             ambi_dec_setSofaFilePath(x->hAmbi, completpath);
             ambi_dec_setUseDefaultHRIRsflag(x->hAmbi, 0);
+            x->use_sofa = 1;
         } else {
             pd_error(x->glist, "[saf.decoder~] Could not open sofa file!");
-            ambi_dec_setUseDefaultHRIRsflag(x->hAmbi, 0);
+            ambi_dec_setUseDefaultHRIRsflag(x->hAmbi, 1);
+            x->use_sofa = 1;
         }
     } else if (strcmp(method, "binaural") == 0) {
         x->binaural = atom_getfloat(argv);
-        ambi_dec_setBinauraliseLSflag(x->hAmbi, x->binaural);
         if (x->binaural) {
             x->nOut = 2;
         } else {
             x->nOut = x->nFlagSpeakers;
         }
         x->hAmbiInit = 0;
-        ambi_dec_refreshSettings(x->hAmbi);
+        ambi_dec_setBinauraliseLSflag(x->hAmbi, x->binaural);
+        if (!x->use_sofa) {
+            ambi_dec_setUseDefaultHRIRsflag(x->hAmbi, 1);
+        }
         canvas_update_dsp();
-    } else if (strcmp(method, "loudspeaker") == 0) {
+    } else if (strcmp(method, "speaker") == 0) {
         // The `loudspeaker` method sets the azimuth and elevation of a specific loudspeaker,
         // ensuring accurate spatial rendering of Ambisonic sources.
         int index = atom_getint(argv) - 1;
@@ -157,10 +164,12 @@ static void decoder_tilde_set(t_decoder_tilde *x, t_symbol *s, int argc, t_atom 
             pd_error(x, "[saf.decoder~] %d is not a valid speaker index.", index + 1);
             return;
         } else if (loudspeakercount >= index) {
-            ambi_dec_setLoudspeakerAzi_deg(x->hAmbi, index, azi);
-            ambi_dec_setLoudspeakerElev_deg(x->hAmbi, index, elev);
+            // ambi_dec_setLoudspeakerAzi_deg(x->hAmbi, index, azi);
+            // ambi_dec_setLoudspeakerElev_deg(x->hAmbi, index, elev);
             logpost(x, 3, "[saf.decoder~] Setting loudspeaker position %d to %f %f", index + 1, azi,
                     elev);
+            x->hAmbiInit = 0;
+            canvas_update_dsp();
         } else {
             pd_error(x,
                      "[saf.decoder~] Trying to set loudspeaker position %d, but only %d available.",
@@ -347,7 +356,6 @@ void decoder_tilde_dsp(t_decoder_tilde *x, t_signal **sp) {
             ambi_dec_setMasterDecOrder(x->hAmbi, nOrder);
             ambi_dec_setBinauraliseLSflag(x->hAmbi, 0);
         }
-        ambi_dec_setUseDefaultHRIRsflag(x->hAmbi, 1);
 
         logpost(x, 2, "[saf.decoder~] Initializing decoder codec...");
         pthread_t initThread;
@@ -422,12 +430,6 @@ void *decoder_tilde_new(t_symbol *s, int argc, t_atom *argv) {
     ambi_dec_setNumLoudspeakers(x->hAmbi, x->nOut);
     ambi_dec_init(x->hAmbi, sys_getsr());
 
-    for (int i = 0; i < x->nOut; i++) {
-        float azi = 360.0f / x->nOut * i;
-        ambi_dec_setLoudspeakerAzi_deg(x->hAmbi, i, azi);
-        ambi_dec_setLoudspeakerElev_deg(x->hAmbi, i, 0);
-    }
-
     if (x->nOrder < 1) {
         x->nOut = 2;
         x->binaural = 1;
@@ -498,7 +500,7 @@ void setup_saf0x2edecoder_tilde(void) {
     class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("sofafile"), A_GIMME, 0);
     class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("binaural"), A_GIMME, 0);
     class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("decoder_order"), A_GIMME, 0);
-    class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("loudspeaker"), A_GIMME, 0);
+    class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("speaker"), A_GIMME, 0);
     class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("hrirpreproc"), A_GIMME, 0);
     class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("ch_order"), A_GIMME, 0);
     class_addmethod(decoder_tilde_class, (t_method)decoder_tilde_set, gensym("normtype"), A_GIMME, 0);

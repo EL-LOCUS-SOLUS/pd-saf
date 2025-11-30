@@ -111,46 +111,43 @@ static void ambiroom_tilde_set(t_ambi_roomsim_tilde *x, t_symbol *s, int argc, t
         ambi_roomsim_setSourceY(x->hAmbi, index, pos_y);
         ambi_roomsim_setSourceZ(x->hAmbi, index, pos_z);
     } else if (strcmp(method, "receiver") == 0) {
-        float index = atom_getfloat(argv + 1) - 1;
-        float pos_x = atom_getfloat(argv + 2);
-        float pos_y = atom_getfloat(argv + 3);
-        float pos_z = atom_getfloat(argv + 4);
+        float index = atom_getfloat(argv) - 1;
+        float pos_x = atom_getfloat(argv + 1);
+        float pos_y = atom_getfloat(argv + 2);
+        float pos_z = atom_getfloat(argv + 3);
         ambi_roomsim_setReceiverX(x->hAmbi, index, pos_x);
         ambi_roomsim_setReceiverY(x->hAmbi, index, pos_y);
         ambi_roomsim_setReceiverZ(x->hAmbi, index, pos_z);
         ambi_roomsim_setNumReceivers(x->hAmbi, x->nReceivers);
     } else if (strcmp(method, "roomdim") == 0) {
-        float x_pos = atom_getfloat(argv + 1);
-        float y_pos = atom_getfloat(argv + 2);
-        float z_pos = atom_getfloat(argv + 3);
+        float x_pos = atom_getfloat(argv);
+        float y_pos = atom_getfloat(argv + 1);
+        float z_pos = atom_getfloat(argv + 2);
         ambi_roomsim_setRoomDimX(x->hAmbi, x_pos);
         ambi_roomsim_setRoomDimY(x->hAmbi, y_pos);
         ambi_roomsim_setRoomDimZ(x->hAmbi, z_pos);
-    }
-
-    // Config
-    else if (strcmp(method, "numreceivers") == 0) {
-        int numReceivers = atom_getint(argv + 1);
-        ambi_roomsim_setNumReceivers(x->hAmbi, numReceivers);
-    } else if (strcmp(method, "enableims") == 0) {
-        // IMS significa Image Source Method, um método utilizado para simular reflexões precoces no
-        // som.
+        x->hAmbiInit=0;
+        canvas_update_dsp();
+    } else if (strcmp(method, "reflections") == 0) {
+        // IMS Image Source Method,
         int enableIMS = atom_getint(argv + 1);
+        ambi_roomsim_setEnableIMSflag(x->hAmbi, enableIMS);
     } else if (strcmp(method, "maxreflectionorder") == 0) {
         int maxReflectionOrder = atom_getint(argv + 1);
-        pd_assert(x, maxReflectionOrder < 7,
-                  "[saf.roomsim~] Numbers higher then 7 is a very high reflection order");
+        pd_assert(x, maxReflectionOrder > 0, "[saf.roomsim~] Max reflection order must be > 0");
+        if (maxReflectionOrder > 7) {
+            logpost(x, 2, "[saf.roomsim~] Numbers higher then 7 is a very high reflection order");
+        }
         ambi_roomsim_setMaxReflectionOrder(x->hAmbi, maxReflectionOrder);
     } else if (strcmp(method, "wallabscoeff") == 0) {
         // set ambi_roomsim_setWallAbsCoeff
         // set wallabscoeff <+x> <-x> <+y> <-y> <+z> <-z>
-        float coeffx_plus = atom_getfloat(argv + 1);
-        float coeffx_minus = atom_getfloat(argv + 2);
-        float coeffy_plus = atom_getfloat(argv + 3);
-        float coeffy_minus = atom_getfloat(argv + 4);
-        float coeffz_plus = atom_getfloat(argv + 5);
-        float coeffz_minus = atom_getfloat(argv + 6);
-
+        float coeffx_plus = atom_getfloat(argv);
+        float coeffx_minus = atom_getfloat(argv + 1);
+        float coeffy_plus = atom_getfloat(argv + 2);
+        float coeffy_minus = atom_getfloat(argv + 3);
+        float coeffz_plus = atom_getfloat(argv + 4);
+        float coeffz_minus = atom_getfloat(argv + 5);
         pd_assert(x, coeffx_plus >= 0, "[saf.roomsim~] First value must be positive or 0");
         pd_assert(x, coeffx_minus < 0, "[saf.roomsim~] Second value must be negative");
         pd_assert(x, coeffy_plus >= 0, "[saf.roomsim~] Third value must be positive or 0");
@@ -164,15 +161,18 @@ static void ambiroom_tilde_set(t_ambi_roomsim_tilde *x, t_symbol *s, int argc, t
         ambi_roomsim_setWallAbsCoeff(x->hAmbi, 1, 1, coeffy_minus);
         ambi_roomsim_setWallAbsCoeff(x->hAmbi, 2, 0, coeffz_plus);
         ambi_roomsim_setWallAbsCoeff(x->hAmbi, 2, 1, coeffz_minus);
-
-    } else if (strcmp(method, "chorder") == 0) {
-        int chOrder = atom_getint(argv + 1);
-        ambi_roomsim_setChOrder(x->hAmbi, chOrder);
     } else if (strcmp(method, "normtype") == 0) {
-        int normType = atom_getint(argv + 1);
-        ambi_roomsim_setNormType(x->hAmbi, normType);
-    } else {
-        pd_error(x, "[saf.roomsim~] Unknown set method: %s", method);
+        int normType = atom_getint(argv) + 1;
+        switch (normType) {
+        case NORM_N3D:
+            ambi_roomsim_setNormType(x->hAmbi, NORM_N3D);
+        case NORM_SN3D:
+            ambi_roomsim_setNormType(x->hAmbi, NORM_SN3D);
+        case NORM_FUMA:
+            ambi_roomsim_setNormType(x->hAmbi, NORM_FUMA);
+        default:
+            pd_error(x, "[saf.roomsim~] Unknown normtype: %s", method);
+        }
     }
 }
 
@@ -279,9 +279,9 @@ void ambiroom_tilde_dsp(t_ambi_roomsim_tilde *x, t_signal **sp) {
 
     // ambi_roomsim_getFrameSize has fixed frameSize, for encoder is 64 for
     // decoder is 128. In the perform method sometimes I need to accumulate samples sometimes I
-    // need to process 2 or more times to avoid change how ambi_roomsim_ works. I think that in this
-    // way is more safe, once that these functions are tested in the main repo. But maybe worse
-    // to implement the own set of functions.
+    // need to process 2 or more times to avoid change how ambi_roomsim_ works. I think that in
+    // this way is more safe, once that these functions are tested in the main repo. But maybe
+    // worse to implement the own set of functions.
 
     x->nPdFrameSize = sp[0]->s_n;
     x->nIn = sp[0]->s_nchans;
@@ -375,10 +375,6 @@ void *ambiroom_tilde_new(t_symbol *s, int argc, t_atom *argv) {
     ambi_roomsim_setReceiverY(x->hAmbi, 0, 2.5);
     ambi_roomsim_setReceiverZ(x->hAmbi, 0, 2.5);
 
-    ambi_roomsim_setReceiverX(x->hAmbi, 0, 2.5);
-    ambi_roomsim_setReceiverY(x->hAmbi, 0, 2.5);
-    ambi_roomsim_setReceiverZ(x->hAmbi, 0, 2.5);
-
     ambi_roomsim_setRoomDimX(x->hAmbi, 5);
     ambi_roomsim_setRoomDimY(x->hAmbi, 5);
     ambi_roomsim_setRoomDimZ(x->hAmbi, 5);
@@ -448,4 +444,9 @@ void setup_saf0x2eroomsim_tilde(void) {
     class_addmethod(ambiroom_tilde_class, (t_method)ambiroom_tilde_set, gensym("source"), A_GIMME, 0);
     class_addmethod(ambiroom_tilde_class, (t_method)ambiroom_tilde_set, gensym("roomdim"), A_GIMME, 0);
     class_addmethod(ambiroom_tilde_class, (t_method)ambiroom_tilde_set, gensym("receiver"), A_GIMME, 0);
+    class_addmethod(ambiroom_tilde_class, (t_method)ambiroom_tilde_set, gensym("reflections"), A_GIMME, 0);
+    class_addmethod(ambiroom_tilde_class, (t_method)ambiroom_tilde_set, gensym("maxreflectionsorder"), A_GIMME, 0);
+    class_addmethod(ambiroom_tilde_class, (t_method)ambiroom_tilde_set, gensym("wallabscoeff"), A_GIMME, 0);
+    class_addmethod(ambiroom_tilde_class, (t_method)ambiroom_tilde_set, gensym("normtype"), A_GIMME, 0);
+
 }

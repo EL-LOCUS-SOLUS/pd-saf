@@ -1,16 +1,15 @@
 #include <string.h>
-#include <math.h>
-#include <pthread.h>
 
 #include <m_pd.h>
 #include <g_canvas.h>
 
-#include <pitch_shifter.h>
+#include "utilities.h"
+#include <panner.h>
 
-static t_class *pitchshifter_tilde_class;
+static t_class *panner_tilde_class;
 
 // ─────────────────────────────────────
-typedef struct _pitchshifter_tilde {
+typedef struct _panner_tilde {
     t_object obj;
     t_sample sample;
 
@@ -34,12 +33,12 @@ typedef struct _pitchshifter_tilde {
     int nPreviousOut;
 
     int multichannel;
-} t_pitchshifter_tilde;
+} t_panner_tilde;
 
 // ─────────────────────────────────────
-static void pitchshifter_tilde_malloc(t_pitchshifter_tilde *x) {
+static void panner_tilde_malloc(t_panner_tilde *x) {
     if (x->aIns) {
-        for (int i = 0; i < x->nIn; i++) {
+        for (int i = 0; i < x->nPreviousIn; i++) {
             if (x->aIns[i]) {
                 freebytes(x->aIns[i], x->nAmbiFrameSize * sizeof(t_sample));
             }
@@ -80,28 +79,40 @@ static void pitchshifter_tilde_malloc(t_pitchshifter_tilde *x) {
 }
 
 // ─────────────────────────────────────
-static void pitchshifter_tilde_set(t_pitchshifter_tilde *x, t_symbol *s, int argc, t_atom *argv) {
-    const char *method = atom_getsymbol(argv)->s_name;
-
-    if (strcmp(method, "cents") == 0) {
-        float cents = atom_getfloat(argv + 1);
-        float factor = pow(2, cents / 1200.0);
-        post("factor is %f", factor);
-        pitch_shifter_setPitchShiftFactor(x->hAmbi, factor);
-    } else if (strcmp(method, "factor") == 0) {
-        float factor = atom_getfloat(argv + 1);
-        pitch_shifter_setPitchShiftFactor(x->hAmbi, factor);
-    } else if (strcmp(method, "osamp") == 0) {
-        float osamp = atom_getfloat(argv + 1);
-        pitch_shifter_setOSampOption(x->hAmbi, osamp);
-    } else if (strcmp(method, "fftsize") == 0) {
-        // TODO: NEED TO REALLOC MEMORY THE FFT SIZE
+static void panner_tilde_set(t_panner_tilde *x, t_symbol *s, int argc, t_atom *argv) {
+    const char *method = s->s_name;
+    if (strcmp(method, "source") == 0) {
+        int index = atom_getint(argv) - 1;
+        float azi = atom_getfloat(argv + 1);
+        float ele = atom_getfloat(argv + 2);
+        panner_setSourceAzi_deg(x->hAmbi, index, azi);
+        panner_setSourceElev_deg(x->hAmbi, index, ele);
+    } else if (strcmp(method, "speaker") == 0) {
+        int index = atom_getint(argv);
+        float azi = atom_getfloat(argv + 1);
+        float ele = atom_getfloat(argv + 2);
+        panner_setLoudspeakerAzi_deg(x->hAmbi, index, azi);
+        panner_setLoudspeakerElev_deg(x->hAmbi, index, ele);
+    } else if (strcmp(method, "dtt") == 0) {
+        float dtt = atom_getfloat(argv);
+        if (dtt > 1 || dtt < 0) {
+            pd_error(x, "[saf.panner~] dtt must be between 0 and 1");
+            return;
+        }
+        panner_setDTT(x->hAmbi, dtt);
+        x->hAmbiInit = 0;
+        canvas_update_dsp();
+    } else if (strcmp(method, "spread") == 0) {
+        float spread = atom_getfloat(argv);
+        panner_setSpread(x->hAmbi, spread);
+        x->hAmbiInit = 0;
+        canvas_update_dsp();
     }
 }
 
 // ─────────────────────────────────────
-t_int *pitchshifter_tilde_performmultichannel(t_int *w) {
-    t_pitchshifter_tilde *x = (t_pitchshifter_tilde *)(w[1]);
+t_int *panner_tilde_performmultichannel(t_int *w) {
+    t_panner_tilde *x = (t_panner_tilde *)(w[1]);
     int n = (int)(w[2]);
     t_sample *ins = (t_sample *)(w[3]);
     t_sample *outs = (t_sample *)(w[4]);
@@ -114,8 +125,8 @@ t_int *pitchshifter_tilde_performmultichannel(t_int *w) {
 
         // Process only if a full frame is ready
         if (x->nInAccIndex == x->nAmbiFrameSize) {
-            pitch_shifter_process(x->hAmbi, (const float *const *)x->aIns, (float *const *)x->aOuts,
-                                  x->nIn, x->nOut, x->nAmbiFrameSize);
+            panner_process(x->hAmbi, (const float *const *)x->aIns, (float *const *)x->aOuts,
+                           x->nIn, x->nOut, x->nAmbiFrameSize);
             x->nInAccIndex = 0;
             x->nOutAccIndex = 0; // Reset for the next frame
         }
@@ -140,8 +151,8 @@ t_int *pitchshifter_tilde_performmultichannel(t_int *w) {
                        x->nAmbiFrameSize * sizeof(t_sample));
             }
             // Processa o bloco atual
-            pitch_shifter_process(x->hAmbi, (const float *const *)x->aInsTmp,
-                                  (float *const *)x->aOutsTmp, x->nIn, x->nOut, x->nAmbiFrameSize);
+            panner_process(x->hAmbi, (const float *const *)x->aInsTmp, (float *const *)x->aOutsTmp,
+                           x->nIn, x->nOut, x->nAmbiFrameSize);
 
             t_sample *out = (t_sample *)(w[4]);
             // Copia o resultado para os canais de saída com o offset correto
@@ -156,8 +167,8 @@ t_int *pitchshifter_tilde_performmultichannel(t_int *w) {
 }
 
 // ─────────────────────────────────────
-t_int *pitchshifter_tilde_perform(t_int *w) {
-    t_pitchshifter_tilde *x = (t_pitchshifter_tilde *)(w[1]);
+t_int *panner_tilde_perform(t_int *w) {
+    t_panner_tilde *x = (t_panner_tilde *)(w[1]);
     int n = (int)(w[2]);
 
     if (n < x->nAmbiFrameSize) {
@@ -166,8 +177,8 @@ t_int *pitchshifter_tilde_perform(t_int *w) {
         }
         x->nInAccIndex += n;
         if (x->nInAccIndex == x->nAmbiFrameSize) {
-            pitch_shifter_process(x->hAmbi, (const float *const *)x->aIns, (float *const *)x->aOuts,
-                                  x->nIn, x->nOut, x->nAmbiFrameSize);
+            panner_process(x->hAmbi, (const float *const *)x->aIns, (float *const *)x->aOuts,
+                           x->nIn, x->nOut, x->nAmbiFrameSize);
             x->nInAccIndex = 0;
             x->nOutAccIndex = 0;
         }
@@ -183,8 +194,8 @@ t_int *pitchshifter_tilde_perform(t_int *w) {
                 memcpy(x->aInsTmp[ch], (t_sample *)w[3 + ch] + (chunkIndex * x->nAmbiFrameSize),
                        x->nAmbiFrameSize * sizeof(t_sample));
             }
-            pitch_shifter_process(x->hAmbi, (const float *const *)x->aInsTmp,
-                                  (float *const *)x->aOutsTmp, x->nIn, x->nOut, x->nAmbiFrameSize);
+            panner_process(x->hAmbi, (const float *const *)x->aInsTmp, (float *const *)x->aOutsTmp,
+                           x->nIn, x->nOut, x->nAmbiFrameSize);
             for (int ch = 0; ch < x->nOut; ch++) {
                 t_sample *out = (t_sample *)(w[3 + x->nIn + ch]);
                 memcpy(out + (chunkIndex * x->nAmbiFrameSize), x->aOutsTmp[ch],
@@ -197,38 +208,51 @@ t_int *pitchshifter_tilde_perform(t_int *w) {
 }
 
 // ─────────────────────────────────────
-void pitchshifter_tilde_dsp(t_pitchshifter_tilde *x, t_signal **sp) {
-    // Set frame sizes and reset indices
-    x->nAmbiFrameSize = pitch_shifter_getFrameSize();
+void panner_tilde_dsp(t_panner_tilde *x, t_signal **sp) {
+    // panner_getFrameSize has fixed frameSize, for panner is 64 for
+    // decoder is 128. In the perform method sometimes I need to accumulate
+    // samples sometimes I need to process 2 or more times to avoid change how
+    // panner_ works. I think that in this way is more safe, once that these
+    // functions are tested in the main repo. But maybe worse to implement the own
+    // set of functions.
+
+    x->nAmbiFrameSize = panner_getFrameSize();
     x->nPdFrameSize = sp[0]->s_n;
     x->nOutAccIndex = 0;
     x->nInAccIndex = 0;
+
+    x->nIn = x->multichannel ? sp[0]->s_nchans : x->nIn;
     int sum = x->nIn + x->nOut;
     int sigvecsize = sum + 2;
 
-    // Initialize the ambisonic pitchshifter
+    panner_setNumSources(x->hAmbi, x->nIn);
+    panner_setNumLoudspeakers(x->hAmbi, x->nOut);
     if (!x->hAmbiInit) {
-        pitch_shifter_init(x->hAmbi, sys_getsr());
+        panner_initCodec(x->hAmbi);
         x->hAmbiInit = 1;
     }
 
-    if (x->multichannel) {
-        x->nIn = sp[0]->s_nchans;
-        pitch_shifter_setNumChannels(x->hAmbi, x->nIn);
-    }
-
     if (x->nPreviousIn != x->nIn || x->nPreviousOut != x->nOut) {
-        pitchshifter_tilde_malloc(x);
+        panner_setNumSources(x->hAmbi, x->nIn);
+        panner_tilde_malloc(x);
+        for (int i = 0; i < x->nIn; i++) {
+            float azi = 360.0f / x->nOut * i;
+            panner_setSourceAzi_deg(x->hAmbi, i, azi);
+            panner_setSourceElev_deg(x->hAmbi, i, 0);
+        }
+        x->nPreviousIn = x->nIn;
+        x->nPreviousIn = x->nOut;
     }
 
-    pitch_shifter_initCodec(x->hAmbi);
+    if (sp[0]->s_nchans > 1 && !x->multichannel) {
+        pd_error(x, "Multichannel mode is off, but input is multichannel, use '-m' flag");
+    }
 
     // add perform method
     if (x->multichannel) {
         x->nIn = sp[0]->s_nchans;
         signal_setmultiout(&sp[1], x->nOut);
-        dsp_add(pitchshifter_tilde_performmultichannel, 4, x, sp[0]->s_n, sp[0]->s_vec,
-                sp[1]->s_vec);
+        dsp_add(panner_tilde_performmultichannel, 4, x, sp[0]->s_n, sp[0]->s_vec, sp[1]->s_vec);
     } else {
         for (int i = x->nIn; i < sum; i++) {
             signal_setmultiout(&sp[i], 1);
@@ -239,34 +263,41 @@ void pitchshifter_tilde_dsp(t_pitchshifter_tilde *x, t_signal **sp) {
         for (int i = 0; i < sum; i++) {
             sigvec[2 + i] = (t_int)sp[i]->s_vec;
         }
-        dsp_addv(pitchshifter_tilde_perform, sigvecsize, sigvec);
+        dsp_addv(panner_tilde_perform, sigvecsize, sigvec);
         freebytes(sigvec, sigvecsize * sizeof(t_int));
     }
 }
 
 // ─────────────────────────────────────
-void *pitchshifter_tilde_new(t_symbol *s, int argc, t_atom *argv) {
-    t_pitchshifter_tilde *x = (t_pitchshifter_tilde *)pd_new(pitchshifter_tilde_class);
-    int order = (argc >= 1) ? atom_getint(argv) : 1;
-    int num_sources = (argc >= 2) ? atom_getint(argv + 1) : 1;
-    x->multichannel = (argc >= 3) ? strcmp(atom_getsymbol(argv + 2)->s_name, "-m") == 0 : 0;
+void *panner_tilde_new(t_symbol *s, int argc, t_atom *argv) {
     if (argc < 2) {
-        pd_error(x, "[saf.pitchshifter~] Wrong number of arguments, use [saf.pitchshifter~ "
-                    "<speakers_count> "
-                    "<sources>");
+        pd_error(NULL, "[saf.panner~] Wrong number of arguments, use [saf.panner~ "
+                       "<num_sources> <ambisonic_order>] or [saf.panner~ -m <ambisonic_order>] "
+                       "for multichannel input");
         return NULL;
     }
 
-    order = order < 1 ? 1 : order;
-    num_sources = num_sources < 1 ? 1 : num_sources;
-    x->hAmbiInit = 0;
+    t_panner_tilde *x = (t_panner_tilde *)pd_new(panner_tilde_class);
+    int num_sources = 4;
+    int num_speakers = 1;
+    if (argv[0].a_type == A_SYMBOL) {
+        if (strcmp(atom_getsymbol(argv)->s_name, "-m") != 0) {
+            pd_error(x, "[saf.panner~] Expected '-m' in second argument.");
+            return NULL;
+        }
+        num_speakers = (argc >= 1) ? atom_getint(argv + 1) : 1;
+        x->multichannel = 1;
+    } else {
+        num_sources = (argc >= 2) ? atom_getint(argv) : 1;
+        num_speakers = (argc >= 1) ? atom_getint(argv + 1) : 1;
+        x->multichannel = 0;
+    }
 
-    pitch_shifter_create(&x->hAmbi);
-    pitch_shifter_setNumChannels(x->hAmbi, num_sources);
-    x->nOrder = order;
+    panner_create(&x->hAmbi);
+    panner_init(x->hAmbi, sys_getsr());
+    x->nOrder = 1;
     x->nIn = num_sources;
-    x->nOut = (order + 1) * (order + 1);
-    x->nInAccIndex = 0;
+    x->nOut = num_speakers;
 
     if (x->multichannel) {
         outlet_new(&x->obj, &s_signal);
@@ -279,12 +310,12 @@ void *pitchshifter_tilde_new(t_symbol *s, int argc, t_atom *argv) {
         }
     }
 
-    return (void *)x;
+    return x;
 }
 
 // ─────────────────────────────────────
-void pitchshifter_tilde_free(t_pitchshifter_tilde *x) {
-    pitch_shifter_destroy(&x->hAmbi);
+void panner_tilde_free(t_panner_tilde *x) {
+    panner_destroy(&x->hAmbi);
     for (int i = 0; i < x->nIn; i++) {
         if (x->aIns) {
             freebytes(x->aIns[i], x->nAmbiFrameSize * sizeof(t_sample));
@@ -317,15 +348,17 @@ void pitchshifter_tilde_free(t_pitchshifter_tilde *x) {
 }
 
 // ─────────────────────────────────────
-void setup_saf0x2epitchshifter_tilde(void) {
-    pitchshifter_tilde_class =
-        class_new(gensym("saf.pitchshifter~"), (t_newmethod)pitchshifter_tilde_new,
-                  (t_method)pitchshifter_tilde_free, sizeof(t_pitchshifter_tilde),
-                  CLASS_DEFAULT | CLASS_MULTICHANNEL, A_GIMME, 0);
+// clang-format off
+void setup_saf0x2epanner_tilde(void) {
+    panner_tilde_class =
+        class_new(gensym("saf.panner~"), (t_newmethod)panner_tilde_new, (t_method)panner_tilde_free,
+                  sizeof(t_panner_tilde), CLASS_DEFAULT | CLASS_MULTICHANNEL, A_GIMME, 0);
 
-    CLASS_MAINSIGNALIN(pitchshifter_tilde_class, t_pitchshifter_tilde, sample);
-    class_addmethod(pitchshifter_tilde_class, (t_method)pitchshifter_tilde_dsp, gensym("dsp"),
-                    A_CANT, 0);
-    class_addmethod(pitchshifter_tilde_class, (t_method)pitchshifter_tilde_set, gensym("set"),
-                    A_GIMME, 0);
+    CLASS_MAINSIGNALIN(panner_tilde_class, t_panner_tilde, sample);
+    class_addmethod(panner_tilde_class, (t_method)panner_tilde_dsp, gensym("dsp"), A_CANT, 0);
+
+    class_addmethod(panner_tilde_class, (t_method)panner_tilde_set, gensym("source"), A_GIMME, 0);
+    class_addmethod(panner_tilde_class, (t_method)panner_tilde_set, gensym("speaker"), A_GIMME, 0);
+    class_addmethod(panner_tilde_class, (t_method)panner_tilde_set, gensym("dtt"), A_GIMME, 0);
+    class_addmethod(panner_tilde_class, (t_method)panner_tilde_set, gensym("spread"), A_GIMME, 0);
 }

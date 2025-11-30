@@ -1,4 +1,4 @@
-local projection = pd.Class:new():register("saf.projection")
+local projection = pd.Class:new():register("saf.3droom")
 
 --╭─────────────────────────────────────╮
 --│            Buttom Class             │
@@ -102,7 +102,7 @@ function Button:draw(g)
 	local text_x = self.x + (self.w - text_width) / 2
 	local text_y = self.y + (self.h - text_height) / 2
 
-	g:draw_text(self.label, text_x, text_y, text_width * 1.5, self.font_size)
+	g:draw_text(self.label, text_x, text_y, text_width * 1., 10)
 end
 
 --╭─────────────────────────────────────╮
@@ -110,7 +110,7 @@ end
 --╰─────────────────────────────────────╯
 function projection:initialize(name, args)
 	self.inlets = 1
-	self.outlets = 0
+	self.outlets = 1
 
 	-- initialization
 	self.rotation_x = 0
@@ -128,15 +128,11 @@ function projection:initialize(name, args)
 	self.trajectories = {}
 
 	self.speakers = {
-		{ -0.5, -0.4, -0.5 },
-		{ 0.5, -0.4, -0.5 },
-		{ 0.5, -0.4, 0.5 },
-		{ -0.5, -0.4, 0.5 },
+		{ -0.5, 0, -0.5 },
+		{ 0.5, 0, -0.5 },
 
-		{ -0.5, 0.4, -0.5 },
-		{ 0.5, 0.4, -0.5 },
-		{ 0.5, 0.4, 0.5 },
-		{ -0.5, 0.4, 0.5 },
+		{ 0.5, 0, 0.5 },
+		{ -0.5, 0, 0.5 },
 	}
 
 	self.scale_xyz = {
@@ -179,11 +175,46 @@ end
 --╰─────────────────────────────────────╯
 function projection:play_click()
 	self.animate = true
-	self.now = 0
-	local now = 0
-	for _, trajectory in pairs(self.trajectories) do
-		trajectory.start_time = now
+	self.now = 0 -- This will be in milliseconds
+	self.curve_progress = 0
+
+	-- Reset all trajectory animation states and create time arrays if missing
+	for index, trajectory in pairs(self.trajectories) do
+		if trajectory.x and trajectory.y and trajectory.z and #trajectory.x > 0 then
+			-- Create time array if it doesn't exist (in milliseconds)
+			if not trajectory.time or #trajectory.time == 0 then
+				trajectory.time = {}
+				local point_count = #trajectory.x
+				for i = 1, point_count do
+					-- Create evenly spaced time points (0, 1000, 2000, ... milliseconds)
+					trajectory.time[i] = (i - 1) * 2000 -- 2000ms (2 seconds) between points
+				end
+			end
+
+			trajectory.start_time = self.now
+			trajectory.current_point = 1
+			trajectory.progress = 0
+			-- Set initial point
+			trajectory.point = {
+				trajectory.x[1] or 0,
+				trajectory.y[1] or 0,
+				trajectory.z[1] or 0,
+			}
+			trajectory.redraw = true
+
+			pd.post(
+				string.format(
+					"Trajectory %d: %d points, time range: %d to %d ms",
+					index,
+					#trajectory.x,
+					trajectory.time[1],
+					trajectory.time[#trajectory.time]
+				)
+			)
+		end
 	end
+
+	pd.post("Starting animation with " .. self:count_trajectories() .. " trajectories")
 	self.clock_animation:delay(0)
 end
 
@@ -264,8 +295,6 @@ function projection:in_1_point(args)
 		tonumber(args[2]) or 0,
 		tonumber(args[3]) or 0,
 	}
-
-	self:repaint(4)
 end
 
 -- ─────────────────────────────────────
@@ -277,25 +306,10 @@ function projection:in_1_time(args)
 
 	local times = {}
 	for i = 2, #args do
-		times[i - 1] = tonumber(args[i])
+		times[i - 1] = tonumber(args[i]) -- Assuming time values are already in milliseconds
 	end
 
 	self.trajectories[index]["time"] = times
-
-	-- Precompute normalized durations (Δt) and store for interpolation
-	if #times >= 2 then
-		local segments = {}
-		for i = 1, #times - 1 do
-			local dt = times[i + 1] - times[i]
-			if dt <= 0 then
-				self:error("Non-increasing time values at index " .. i)
-				return
-			end
-			table.insert(segments, dt)
-		end
-		self.trajectories[index]["duration_segments"] = segments
-		self.trajectories[index]["start_time"] = nil -- will be set at :start()
-	end
 end
 
 -- ─────────────────────────────────────
@@ -400,13 +414,39 @@ function projection:in_1_linez(args)
 end
 
 -- ─────────────────────────────────────
-function projection:in_1_start()
+function projection:in_1_play()
 	self.animate = true
-	self.now = 0
-	local now = 0
-	for _, trajectory in pairs(self.trajectories) do
-		trajectory.start_time = now
+	self.now = 0 -- Milliseconds
+	self.curve_progress = 0
+
+	-- Reset all trajectory animation states and create time arrays if missing
+	for index, trajectory in pairs(self.trajectories) do
+		if trajectory.x and trajectory.y and trajectory.z and #trajectory.x > 0 then
+			-- Create time array if it doesn't exist (in milliseconds)
+			if not trajectory.time or #trajectory.time == 0 then
+				trajectory.time = {}
+				local point_count = #trajectory.x
+				for i = 1, point_count do
+					-- Create evenly spaced time points (0, 1000, 2000, ... milliseconds)
+					trajectory.time[i] = (i - 1) * 2000 -- 2000ms (2 seconds) between points
+				end
+			end
+
+			trajectory.start_time = self.now
+			trajectory.current_point = 1
+			trajectory.progress = 0
+			-- Set initial point
+			trajectory.point = {
+				trajectory.x[1] or 0,
+				trajectory.y[1] or 0,
+				trajectory.z[1] or 0,
+			}
+			trajectory.redraw = true
+		else
+			trajectory.redraw = false
+		end
 	end
+
 	self.clock_animation:delay(0)
 end
 
@@ -423,47 +463,105 @@ function projection:point_animation()
 		return
 	end
 
-	local now = self.now
+	local now = self.now -- Current time in milliseconds
+	local has_animation = false
+	local all_finished = true -- Track if ALL trajectories are finished
 
-	for _, trajectory in pairs(self.trajectories) do
+	for index, trajectory in pairs(self.trajectories) do
 		local tx, ty, tz = trajectory.x, trajectory.y, trajectory.z
 		local times = trajectory.time
-		local durations = trajectory.duration_segments
-		local start_time = trajectory.start_time
 
-		if tx and ty and tz and times and durations and start_time then
-			local elapsed = now - start_time
+		if tx and ty and tz and times and #tx > 1 and #tx == #ty and #tx == #tz then
+			local start_time = trajectory.start_time or 0
+			local elapsed = now - start_time -- Elapsed time in milliseconds
 
-			-- Find the correct segment
-			local acc_time = 0
-			local segment_index = nil
-			for i = 1, #durations do
-				acc_time = acc_time + durations[i]
-				if elapsed <= acc_time then
-					segment_index = i
-					break
+			-- Get the total duration of this trajectory
+			local total_duration = times[#times] or 0
+
+			if elapsed <= total_duration then
+				-- Trajectory is still running
+				all_finished = false
+
+				-- Find current time segment
+				local current_segment = 1
+				local segment_start_time = times[1] or 0
+				local segment_end_time = times[#times] or 0
+
+				for i = 1, #times - 1 do
+					segment_start_time = times[i] or 0
+					segment_end_time = times[i + 1] or 0
+					if elapsed >= segment_start_time and elapsed < segment_end_time then
+						current_segment = i
+						break
+					elseif i == #times - 1 and elapsed >= segment_end_time then
+						current_segment = i
+					end
 				end
-			end
 
-			if segment_index then
-				local seg_start_time = acc_time - durations[segment_index]
-				local seg_progress = (elapsed - seg_start_time) / durations[segment_index]
-				local i = segment_index
-				-- Linear interpolation
-				local x = tx[i] * (1 - seg_progress) + tx[i + 1] * seg_progress
-				local y = ty[i] * (1 - seg_progress) + ty[i + 1] * seg_progress
-				local z = tz[i] * (1 - seg_progress) + tz[i + 1] * seg_progress
-				trajectory.point = { x, y, z }
-				trajectory.redraw = true
+				-- Calculate progress within current segment (0 to 1)
+				local segment_duration = segment_end_time - segment_start_time
+				local segment_progress = 0
+
+				if segment_duration > 0 then
+					segment_progress = (elapsed - segment_start_time) / segment_duration
+					segment_progress = math.max(0, math.min(1, segment_progress))
+				else
+					segment_progress = 1 -- If duration is 0, jump to end
+				end
+
+				if current_segment <= #tx - 1 then
+					-- Linear interpolation between current segment points
+					local x1, x2 = tx[current_segment] or 0, tx[current_segment + 1] or 0
+					local y1, y2 = ty[current_segment] or 0, ty[current_segment + 1] or 0
+					local z1, z2 = tz[current_segment] or 0, tz[current_segment + 1] or 0
+
+					local x = x1 + (x2 - x1) * segment_progress
+					local y = y1 + (y2 - y1) * segment_progress
+					local z = z1 + (z2 - z1) * segment_progress
+
+					trajectory.point = { x, y, z }
+					trajectory.redraw = true
+					has_animation = true
+				else
+					-- Should not reach here if we check elapsed <= total_duration
+					trajectory.point = { tx[#tx] or 0, ty[#ty] or 0, tz[#tz] or 0 }
+					trajectory.redraw = true
+					has_animation = true
+				end
 			else
-				trajectory.redraw = false
+				-- This trajectory has finished
+				trajectory.point = { tx[#tx] or 0, ty[#ty] or 0, tz[#tz] or 0 }
+				trajectory.redraw = true
+				has_animation = true -- Still need to redraw the final position
 			end
 		end
 	end
 
-	self:repaint(4)
-	self.clock_animation:delay(30)
-	self.now = now + 15
+	-- Always repaint if there are trajectories to show (even if they're finished)
+	if has_animation then
+		self:repaint(4)
+	end
+
+	-- Continue animation only if not all trajectories are finished
+	if not all_finished then
+		self.clock_animation:delay(30)
+		self.now = now + 30
+	else
+		-- All trajectories have completed
+		self.animate = false
+		pd.post("Animation completed - all trajectories finished")
+	end
+end
+
+-- ─────────────────────────────────────
+function projection:count_trajectories()
+	local count = 0
+	for index, trajectory in pairs(self.trajectories) do
+		if trajectory.x and trajectory.y and trajectory.z and #trajectory.x > 0 then
+			count = count + 1
+		end
+	end
+	return count
 end
 
 --╭─────────────────────────────────────╮
@@ -787,6 +885,7 @@ function projection:paint_layer_3(g)
 	local offsetX = width / 2
 	local offsetY = height / 2
 	local distance = 2
+	g:fill_rect(width - 2, height - 2, 2, 2)
 
 	for index, trajectory in pairs(self.trajectories) do
 		local linex = trajectory.x or {}
@@ -857,7 +956,10 @@ function projection:paint_layer_4(g)
 
 	for index, trajectory in pairs(self.trajectories) do
 		local point = trajectory.point
-		if point then
+
+		if point and trajectory.redraw then
+			self:outlet(1, "source", { index, point[1], point[2], point[3] })
+
 			local scaled = {
 				point[1] * self.scale_xyz.x,
 				point[2] * self.scale_xyz.y,
@@ -871,13 +973,22 @@ function projection:paint_layer_4(g)
 			local x2d = p[1] * z * scale + offsetX
 			local y2d = p[2] * z * scale + offsetY
 
-			local size = 15 / (depth ^ 1.5)
-			size = math.max(2, math.min(size, 10))
+			local size = 20 / (depth ^ 1.2) -- Increased size for better visibility
+			size = math.max(5, math.min(size, 15))
 
-			-- Color per trajectory index
-			g:set_color(255, 255, 255)
+			-- Get color for this trajectory
+			local color = self:index_to_color(index)
+			g:set_color(table.unpack(color))
 			g:fill_ellipse(x2d - size / 2, y2d - size / 2, size, size)
-			g:draw_text(index, x2d + (size * 0.5), y2d + (size * 0.5), 20, size * 1.2) -- Draws text at the specified
+
+			-- White border for better visibility
+			g:set_color(255, 255, 255)
+			g:stroke_ellipse(x2d - size / 2, y2d - size / 2, size, size, 2)
+
+			-- Draw trajectory index number
+			g:set_color(0, 0, 0)
+			local font_size = math.max(8, math.min(12, size * 0.8))
+			g:draw_text(tostring(index), x2d - 3, y2d - font_size / 2, 20, font_size)
 		end
 	end
 end

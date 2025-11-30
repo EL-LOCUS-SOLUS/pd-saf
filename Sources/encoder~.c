@@ -9,7 +9,7 @@
 static t_class *encoder_tilde_class;
 
 // ─────────────────────────────────────
-typedef struct _pitchshifter_tilde {
+typedef struct _encoder_tilde {
     t_object obj;
     t_sample sample;
 
@@ -240,37 +240,22 @@ void encoder_tilde_dsp(t_encoder_tilde *x, t_signal **sp) {
     int sum = x->nIn + x->nOut;
     int sigvecsize = sum + 2;
 
-    // Initialize the ambisonic encoder
-    if (!x->hAmbiInit) {
-        ambi_enc_init(x->hAmbi, sys_getsr());
-        ambi_enc_setOutputOrder(x->hAmbi, (SH_ORDERS)x->nOrder);
-        ambi_enc_setNumSources(x->hAmbi, x->nIn);
-
-        for (int i = 0; i < x->nOut; i++) {
-            float azi = 360.0f / x->nOut * i;
-            ambi_enc_setSourceAzi_deg(x->hAmbi, i, azi);
-            ambi_enc_setSourceElev_deg(x->hAmbi, i, 0);
-        }
-
-        if (ambi_enc_getNSHrequired(x->hAmbi) > x->nOut) {
-            pd_error(x,
-                     "[saf.encoder~] number of output signals is too low for the %d "
-                     "order.",
-                     x->nOrder);
-            return;
-        }
-        x->hAmbiInit = 1;
-    }
+    ambi_enc_setOutputOrder(x->hAmbi, (SH_ORDERS)x->nOrder);
+    ambi_enc_setNumSources(x->hAmbi, x->nIn);
 
     if (x->nPreviousIn != x->nIn || x->nPreviousOut != x->nOut) {
         ambi_enc_setNumSources(x->hAmbi, x->nIn);
         encoder_tilde_malloc(x);
+        for (int i = 0; i < x->nIn; i++) {
+            float azi = 360.0f / x->nOut * i;
+            ambi_enc_setSourceAzi_deg(x->hAmbi, i, azi);
+            ambi_enc_setSourceElev_deg(x->hAmbi, i, 0);
+        }
         x->nPreviousIn = x->nIn;
     }
 
     if (sp[0]->s_nchans > 1 && !x->multichannel) {
         pd_error(x, "Multichannel mode is off, but input is multichannel, use '-m' flag");
-        signal_setmultiout(&sp[1], 1);
     }
 
     // add perform method
@@ -319,10 +304,10 @@ void *encoder_tilde_new(t_symbol *s, int argc, t_atom *argv) {
     }
 
     ambi_enc_create(&x->hAmbi);
+    ambi_enc_init(x->hAmbi, sys_getsr());
     x->nOrder = order;
     x->nIn = num_sources;
     x->nOut = (order + 1) * (order + 1);
-    x->hAmbiInit = 0;
 
     if (x->multichannel) {
         outlet_new(&x->obj, &s_signal);

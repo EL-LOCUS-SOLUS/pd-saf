@@ -12,22 +12,72 @@ function roompanning:initialize(_, args)
 		text = { 127, 145, 162 },
 		sources = { 255, 0, 0 },
 		source_text = { 230, 230, 240 },
+		speakers = { 255, 255, 0 },
+		receiver = { 0, 255, 0 },
 	}
+
+	self.sources = {}
 
 	-- Sistema de coordenadas: X+ = FRENTE, Y+ = ESQUERDA, Z+ = CIMA
 	self.roomsize = { x = 5, y = 5, z = 5, prop = 40 }
-	self.sources = {}
-
-	-- Receiver no centro da sala (2.5, 2.5, 2.5 em metros)
 	self.receivers = {
 		{
 			x = (self.roomsize.x * self.roomsize.prop) / 2,
 			y = (self.roomsize.y * self.roomsize.prop) / 2,
 			z = (self.roomsize.z * self.roomsize.prop) / 2,
 			size = 8,
-			color = { 200, 200, 0 },
 		},
 	}
+
+	self.loudspeakers = {}
+	local nOut = 4
+	local radius = math.min(self.roomsize.x, self.roomsize.y) * 0.5 * self.roomsize.prop
+	local cx = (self.roomsize.x * self.roomsize.prop) / 2
+	local cy = (self.roomsize.y * self.roomsize.prop) / 2
+
+	for i = 0, nOut - 1 do
+		local azi_deg = 360 / nOut * i
+		local azi_rad = azi_deg * math.pi / 180
+
+		-- center-space coordinates (for elevation calc)
+		local x_local = math.cos(azi_rad) * radius
+		local y_local = math.sin(azi_rad) * radius
+		local z_local = 0 -- modify later for height speakers
+
+		-- convert local → screen
+		local x_screen = x_local + cx
+		local y_screen = y_local + cy
+		local position = 8
+
+		-- minor fix for position
+		if x_screen > (self.roomsize.x * self.roomsize.prop / 2) - 1 then
+			if x_screen > (self.roomsize.x * self.roomsize.prop) - position then
+				x_screen = x_screen - position
+			else
+				x_screen = x_screen - (position / 2)
+			end
+		end
+		if y_screen > (self.roomsize.y * self.roomsize.prop / 2) - 1 then
+			if y_screen > (self.roomsize.y * self.roomsize.prop) - position then
+				y_screen = y_screen - position
+			else
+				y_screen = y_screen - (position / 2)
+			end
+		end
+
+		-- elevation in degrees
+		local ele_rad = math.atan(z_local, math.sqrt(x_local * x_local + y_local * y_local))
+		local ele_deg = ele_rad * 180 / math.pi
+
+		self.loudspeakers[i + 1] = {
+			azi = azi_deg,
+			ele = ele_deg,
+			x = x_screen,
+			y = y_screen,
+			z = z_local,
+			size = position,
+		}
+	end
 
 	self.view = "xy" -- opções: "xy", "xz", "yz"
 	self.wsize = self.roomsize.x * self.roomsize.prop
@@ -41,6 +91,66 @@ end
 function roompanning:postinitialize()
 	self:outlet(1, "roomdim", { self.roomsize.x, self.roomsize.y, self.roomsize.z })
 	self:outlet(1, "receiver", { 1, self.receivers[1].x, self.receivers[1].y, self.receivers[1].z })
+
+	for i = 1, #self.loudspeakers do
+		local speaker = self.loudspeakers[i]
+		self:outlet(2, "speaker", { i, speaker.azi, speaker.ele })
+	end
+end
+
+-- ─────────────────────────────────────
+function roompanning:in_1_numspeakers(args)
+	self.loudspeakers = {}
+	local nOut = args[1]
+	local radius = math.min(self.roomsize.x, self.roomsize.y) * 0.5 * self.roomsize.prop
+	local cx = (self.roomsize.x * self.roomsize.prop) / 2
+	local cy = (self.roomsize.y * self.roomsize.prop) / 2
+
+	for i = 0, nOut - 1 do
+		local azi_deg = 360 / nOut * i
+		local azi_rad = azi_deg * math.pi / 180
+
+		-- center-space coordinates (for elevation calc)
+		local x_local = math.cos(azi_rad) * radius
+		local y_local = math.sin(azi_rad) * radius
+		local z_local = 0 -- modify later for height speakers
+
+		-- convert local → screen
+		local x_screen = x_local + cx
+		local y_screen = y_local + cy
+		local position = 8
+
+		-- minor fix for position
+		if x_screen > (self.roomsize.x * self.roomsize.prop / 2) - 1 then
+			if x_screen > (self.roomsize.x * self.roomsize.prop) - position then
+				x_screen = x_screen - position
+			else
+				x_screen = x_screen - (position / 2)
+			end
+		end
+		if y_screen > (self.roomsize.y * self.roomsize.prop / 2) - 1 then
+			if y_screen > (self.roomsize.y * self.roomsize.prop) - position then
+				y_screen = y_screen - position
+			else
+				y_screen = y_screen - (position / 2)
+			end
+		end
+
+		-- elevation in degrees
+		local ele_rad = math.atan(z_local, math.sqrt(x_local * x_local + y_local * y_local))
+		local ele_deg = ele_rad * 180 / math.pi
+
+		self.loudspeakers[i + 1] = {
+			azi = azi_deg,
+			ele = ele_deg,
+			x = x_screen,
+			y = y_screen,
+			z = z_local,
+			size = position,
+		}
+		self:outlet(2, "speaker", { i + 1, azi_deg, ele_deg })
+	end
+	self:repaint()
 end
 
 --╭─────────────────────────────────────╮
@@ -73,6 +183,20 @@ function roompanning:in_1_source(args)
 	self:outlet(1, "source", { index, xm, ym, zm })
 
 	self:repaint(2)
+end
+
+-- ─────────────────────────────────────
+function roompanning:in_1_yzview(args)
+	if #args < 1 then
+		error("Wrong arguments")
+	end
+
+	if args[1] == 1 then
+		self.view = "yz"
+	else
+		self.view = "xy"
+	end
+	self:repaint()
 end
 
 -- ─────────────────────────────────────
@@ -183,12 +307,8 @@ function roompanning:mouse_drag(x, y)
 
 	for i, s in pairs(self.sources) do
 		if s.selected then
-			-- Converte posição do mouse para metros
 			local xm, ym, zm = self:pixels_to_meters(x, y)
-
-			-- Atualiza posição em pixels para visualização
-			local px, py, pz = self:meters_to_pixels(xm, ym, zm)
-
+			local px, py, _ = self:meters_to_pixels(xm, ym, zm)
 			if self.view == "xy" then
 				s.x, s.y = px, py
 			elseif self.view == "xz" then
@@ -196,8 +316,6 @@ function roompanning:mouse_drag(x, y)
 			elseif self.view == "yz" then
 				s.y, s.z = px, py
 			end
-
-			-- Envia nova posição em metros
 			self:outlet(1, "source", { i, ym, xm, zm })
 		end
 	end
@@ -207,21 +325,18 @@ end
 
 -- ─────────────────────────────────────
 function roompanning:mouse_down(x, y)
-	for i, s in pairs(self.sources) do
+	for _, s in pairs(self.sources) do
 		local sx, sy
-
 		if self.view == "xy" then
 			sx, sy = s.x, s.y
 		elseif self.view == "xz" then
 			sx, sy = s.x, s.z
-		else -- yz
+		else
 			sx, sy = s.y, s.z
 		end
-
 		local size = s.size
 		local dx = x - sx
 		local dy = y - sy
-
 		if dx * dx + dy * dy <= (size / 2) * (size / 2) then
 			s.selected = true
 			return self:repaint(2)
@@ -243,6 +358,40 @@ end
 --╭─────────────────────────────────────╮
 --│                PAINT                │
 --╰─────────────────────────────────────╯
+function roompanning:draw_loudspeaker(g, x, y, size)
+	local body_w, body_h = size * 0.5, size
+	local speaker_w = size * 0.35
+
+	-- Desenhar o corpo do alto-falante com cantos arredondados
+	g:set_color(0, 0, 0) -- Preto
+	g:fill_rect(x, y, body_w, body_h)
+
+	-- Alto-falante maior (embaixo)
+	g:set_color(255, 255, 255)
+	g:stroke_ellipse(
+		x + (body_w / 2) - (speaker_w / 2),
+		y + (body_h / 2) - (speaker_w / 2) + speaker_w / 2,
+		speaker_w,
+		speaker_w,
+		1
+	)
+	g:fill_ellipse(
+		x + (body_w / 2) - (speaker_w / 2),
+		y + (body_h / 2) - (speaker_w / 2) + speaker_w / 2,
+		speaker_w,
+		speaker_w
+	)
+
+	g:set_color(255, 255, 255)
+	g:stroke_ellipse(x + (body_w / 2) - (speaker_w / 4), y + (body_h * 0.2), speaker_w / 2, speaker_w / 2, 1)
+	g:fill_ellipse(x + (body_w / 2) - (speaker_w / 4), y + (body_h * 0.2), speaker_w / 2, speaker_w / 2)
+
+	if true then
+		return
+	end
+end
+
+-- ─────────────────────────────────────
 function roompanning:paint(g)
 	g:set_color(table.unpack(self.colors.background1))
 	g:fill_all()
@@ -268,7 +417,16 @@ function roompanning:paint(g)
 		end
 	end
 
-	g:set_color(table.unpack(self.colors.text))
+	for i = 1, #self.loudspeakers do
+		g:set_color(table.unpack(self.colors.speakers))
+		g:stroke_ellipse(
+			self.loudspeakers[i].x,
+			self.loudspeakers[i].y,
+			self.loudspeakers[i].size,
+			self.loudspeakers[i].size,
+			1
+		)
+	end
 end
 
 -- ─────────────────────────────────────
@@ -309,7 +467,7 @@ function roompanning:paint_layer_2(g)
 			px, py = r.y, r.z
 		end
 
-		g:set_color(table.unpack(r.color))
+		g:set_color(table.unpack(self.colors.receiver))
 		g:stroke_ellipse(px - r.size / 2, py - r.size / 2, r.size, r.size, 1)
 	end
 end
