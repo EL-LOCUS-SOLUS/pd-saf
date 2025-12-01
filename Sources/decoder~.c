@@ -17,7 +17,6 @@ typedef struct _decoder_tilde {
     t_sample sample;
 
     void *hAmbi;
-    int hAmbiInit;
 
     t_sample **aIns;
     t_sample **aOuts;
@@ -54,8 +53,8 @@ static void decoder_tilde_malloc(t_decoder_tilde *x) {
                 freebytes(x->aInsTmp[i], x->nAmbiFrameSize * sizeof(t_sample));
             }
         }
-        freebytes(x->aIns, x->nPreviousIn * sizeof(t_sample *));    // <--- use nPreviousIn
-        freebytes(x->aInsTmp, x->nPreviousIn * sizeof(t_sample *)); // free the tmp array too
+        freebytes(x->aIns, x->nPreviousIn * sizeof(t_sample *));
+        freebytes(x->aInsTmp, x->nPreviousIn * sizeof(t_sample *));
         x->aIns = NULL;
         x->aInsTmp = NULL;
     }
@@ -68,8 +67,8 @@ static void decoder_tilde_malloc(t_decoder_tilde *x) {
                 freebytes(x->aOutsTmp[i], x->nAmbiFrameSize * sizeof(t_sample));
             }
         }
-        freebytes(x->aOuts, x->nPreviousOut * sizeof(t_sample *));    // <--- use nPreviousOut
-        freebytes(x->aOutsTmp, x->nPreviousOut * sizeof(t_sample *)); // free the tmp array too
+        freebytes(x->aOuts, x->nPreviousOut * sizeof(t_sample *));
+        freebytes(x->aOutsTmp, x->nPreviousOut * sizeof(t_sample *));
         x->aOuts = NULL;
         x->aOutsTmp = NULL;
     }
@@ -90,6 +89,37 @@ static void decoder_tilde_malloc(t_decoder_tilde *x) {
     }
     x->nPreviousIn = x->nIn;
     x->nPreviousOut = x->nOut;
+}
+
+// ─────────────────────────────────────
+static void decoder_tilde_configure_default_speakers(t_decoder_tilde *x) {
+    if (x->nOut <= 0) {
+        return;
+    }
+
+    if (x->nOut == 1) {
+        ambi_dec_setLoudspeakerAzi_deg(x->hAmbi, 0, 0.f);
+        ambi_dec_setLoudspeakerElev_deg(x->hAmbi, 0, 0.f);
+        return;
+    }
+
+    float azimuth_step = 360.f / (float)x->nOut;
+    float elevation = 0.f;
+
+    for (int i = 0; i < x->nOut; i++) {
+        float az = azimuth_step * (float)i;
+        while (az > 180.f) {
+            az -= 360.f;
+        }
+        while (az < -180.f) {
+            az += 360.f;
+        }
+
+        logpost(x, 3, "[saf.decoder~] Setting default speaker %d to azimuth: %f elevation: %f",
+                i + 1, az, elevation);
+        ambi_dec_setLoudspeakerAzi_deg(x->hAmbi, i, az);
+        ambi_dec_setLoudspeakerElev_deg(x->hAmbi, i, elevation);
+    }
 }
 
 // ─────────────────────────────────────
@@ -140,19 +170,18 @@ static void decoder_tilde_set(t_decoder_tilde *x, t_symbol *s, int argc, t_atom 
             ambi_dec_setUseDefaultHRIRsflag(x->hAmbi, 1);
             x->use_sofa = 1;
         }
+    }
+    else if (strcmp(method, "use_default_hrirs") == 0) {
+        t_float state = atom_getfloat(argv);
+        ambi_dec_setUseDefaultHRIRsflag(x->hAmbi, state);
     } else if (strcmp(method, "binaural") == 0) {
         x->binaural = atom_getfloat(argv);
         if (x->binaural) {
             x->nOut = 2;
+            ambi_dec_setBinauraliseLSflag(x->hAmbi, 1);
         } else {
             x->nOut = x->nFlagSpeakers;
         }
-        x->hAmbiInit = 0;
-        ambi_dec_setBinauraliseLSflag(x->hAmbi, x->binaural);
-        if (!x->use_sofa) {
-            ambi_dec_setUseDefaultHRIRsflag(x->hAmbi, 1);
-        }
-        canvas_update_dsp();
     } else if (strcmp(method, "speaker") == 0) {
         // The `loudspeaker` method sets the azimuth and elevation of a specific loudspeaker,
         // ensuring accurate spatial rendering of Ambisonic sources.
@@ -163,13 +192,22 @@ static void decoder_tilde_set(t_decoder_tilde *x, t_symbol *s, int argc, t_atom 
         if (index < 0) {
             pd_error(x, "[saf.decoder~] %d is not a valid speaker index.", index + 1);
             return;
-        } else if (loudspeakercount >= index) {
-            // ambi_dec_setLoudspeakerAzi_deg(x->hAmbi, index, azi);
-            // ambi_dec_setLoudspeakerElev_deg(x->hAmbi, index, elev);
+        } else if (loudspeakercount >= index - 1) {
+            ambi_dec_setLoudspeakerAzi_deg(x->hAmbi, index, azi);
+            ambi_dec_setLoudspeakerElev_deg(x->hAmbi, index, elev);
             logpost(x, 3, "[saf.decoder~] Setting loudspeaker position %d to %f %f", index + 1, azi,
                     elev);
-            x->hAmbiInit = 0;
-            canvas_update_dsp();
+
+            int lowfreq = ambi_dec_getDecMethod(x->hAmbi, 0);
+            int highfreq = ambi_dec_getDecMethod(x->hAmbi, 1);
+            if (lowfreq != DECODING_METHOD_ALLRAD) {
+                ambi_dec_setDecMethod(x->hAmbi, 0, DECODING_METHOD_ALLRAD);
+            }
+
+            if (highfreq != DECODING_METHOD_ALLRAD) {
+                ambi_dec_setDecMethod(x->hAmbi, 1, DECODING_METHOD_ALLRAD);
+            }
+
         } else {
             pd_error(x,
                      "[saf.decoder~] Trying to set loudspeaker position %d, but only %d available.",
@@ -215,9 +253,6 @@ static void decoder_tilde_set(t_decoder_tilde *x, t_symbol *s, int argc, t_atom 
         } else {
             ambi_dec_setDecMethod(x->hAmbi, 1, id);
         }
-        x->hAmbiInit = 0;
-        ambi_dec_refreshSettings(x->hAmbi);
-        canvas_update_dsp();
     } else if (strcmp(method, "max-rE") == 0) {
         // Max-rE weighting improves spatial accuracy and stability, preventing phantom source
         // splitting and reducing timbral coloration, regardless of listener position or Ambisonic
@@ -231,6 +266,9 @@ static void decoder_tilde_set(t_decoder_tilde *x, t_symbol *s, int argc, t_atom 
         // frequencies.
         float freq = atom_getfloat(argv + 1);
         ambi_dec_setTransitionFreq(x->hAmbi, freq);
+    }
+    if (ambi_dec_getCodecStatus(x->hAmbi) == CODEC_STATUS_NOT_INITIALISED) {
+        canvas_update_dsp();
     }
 }
 
@@ -347,21 +385,35 @@ void decoder_tilde_dsp(t_decoder_tilde *x, t_signal **sp) {
     }
 
     int nOrder = get_ambisonic_order(x->nOut);
-    if (!x->hAmbiInit) {
-        ambi_dec_setNumLoudspeakers(x->hAmbi, x->nOut);
-        if (x->nOrder < 1) {
+    if (ambi_dec_getCodecStatus(x->hAmbi) == CODEC_STATUS_NOT_INITIALISED) {
+        ambi_dec_setNormType(x->hAmbi, NORM_N3D);
+        if (x->nOrder < 1 || x->binaural) {
             ambi_dec_setMasterDecOrder(x->hAmbi, 1);
             ambi_dec_setBinauraliseLSflag(x->hAmbi, 1);
         } else {
             ambi_dec_setMasterDecOrder(x->hAmbi, nOrder);
             ambi_dec_setBinauraliseLSflag(x->hAmbi, 0);
+            int preset = get_loudspeaker_array_preset(x->nOut);
+            if (preset == -1) {
+                pd_error(
+                    x,
+                    "Unknown preset for loudspeakers: %d. Please set using the 'speaker' message",
+                    x->nOut);
+            }
+            ambi_dec_setOutputConfigPreset(x->hAmbi, preset);
         }
+
+        ambi_dec_setNumLoudspeakers(x->hAmbi, x->nOut);
+
+        // decoder_tilde_configure_default_speakers(x);
+
+        ambi_dec_setDecMethod(x->hAmbi, DECODING_METHOD_SAD, 0);
+        ambi_dec_setDecMethod(x->hAmbi, DECODING_METHOD_SAD, 1);
 
         logpost(x, 2, "[saf.decoder~] Initializing decoder codec...");
         pthread_t initThread;
         pthread_create(&initThread, NULL, decoder_tilde_initcodec, (void *)x);
         pthread_detach(initThread);
-        x->hAmbiInit = 1;
     }
 
     if (x->nPreviousIn != x->nIn || x->nPreviousOut != x->nOut) {
@@ -425,7 +477,6 @@ void *decoder_tilde_new(t_symbol *s, int argc, t_atom *argv) {
     x->nIn = (order + 1) * (order + 1);
     x->nOut = num_loudspeakers;
     x->nFlagSpeakers = x->nOut;
-    x->hAmbiInit = 0;
     ambi_dec_create(&x->hAmbi);
     ambi_dec_setNumLoudspeakers(x->hAmbi, x->nOut);
     ambi_dec_init(x->hAmbi, sys_getsr());

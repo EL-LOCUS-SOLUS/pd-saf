@@ -126,7 +126,7 @@ static void ambiroom_tilde_set(t_ambi_roomsim_tilde *x, t_symbol *s, int argc, t
         ambi_roomsim_setRoomDimX(x->hAmbi, x_pos);
         ambi_roomsim_setRoomDimY(x->hAmbi, y_pos);
         ambi_roomsim_setRoomDimZ(x->hAmbi, z_pos);
-        x->hAmbiInit=0;
+        x->hAmbiInit = 0;
         canvas_update_dsp();
     } else if (strcmp(method, "reflections") == 0) {
         // IMS Image Source Method,

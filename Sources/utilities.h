@@ -16,6 +16,7 @@
         }                                                                                          \
     } while (0)
 
+// ─────────────────────────────────────
 static void init_logcallback(t_pd *obj, void *data) {
     const char *msg = (const char *)data;
     logpost(obj, 3, "%s", msg);
@@ -77,8 +78,6 @@ static inline int get_source_config_preset(int num_inputs) {
         return SOURCE_CONFIG_PRESET_T_DESIGN_48;
     case 60:
         return SOURCE_CONFIG_PRESET_T_DESIGN_60;
-    // case 9:
-    //     return SOURCE_CONFIG_PRESET_SPH_COV_9;
     case 16:
         return SOURCE_CONFIG_PRESET_SPH_COV_16;
     case 25:
@@ -88,7 +87,7 @@ static inline int get_source_config_preset(int num_inputs) {
     case 64:
         return SOURCE_CONFIG_PRESET_SPH_COV_64;
     default:
-        return SOURCE_CONFIG_PRESET_DEFAULT; // Default preset
+        return -1; // Default preset
     }
 }
 
@@ -175,8 +174,8 @@ static inline int get_min_speakers(int preset) {
 }
 
 // ─────────────────────────────────────
-static inline int get_loudspeaker_array_preset(int num_inputs) {
-    switch (num_inputs) {
+static inline int get_loudspeaker_array_preset(int num_outputs) {
+    switch (num_outputs) {
     case 2:
         return LOUDSPEAKER_ARRAY_PRESET_STEREO;
     case 5:
@@ -213,8 +212,6 @@ static inline int get_loudspeaker_array_preset(int num_inputs) {
         return LOUDSPEAKER_ARRAY_PRESET_ZYLIA_LAB;
     case 4:
         return LOUDSPEAKER_ARRAY_PRESET_T_DESIGN_4;
-    // case 12:
-    //     return LOUDSPEAKER_ARRAY_PRESET_T_DESIGN_12;
     case 24:
         return LOUDSPEAKER_ARRAY_PRESET_T_DESIGN_24;
     case 36:
@@ -223,8 +220,6 @@ static inline int get_loudspeaker_array_preset(int num_inputs) {
         return LOUDSPEAKER_ARRAY_PRESET_T_DESIGN_48;
     case 60:
         return LOUDSPEAKER_ARRAY_PRESET_T_DESIGN_60;
-    // case 9:
-    //     return LOUDSPEAKER_ARRAY_PRESET_SPH_COV_9;
     case 16:
         return LOUDSPEAKER_ARRAY_PRESET_SPH_COV_16;
     case 25:
@@ -234,7 +229,7 @@ static inline int get_loudspeaker_array_preset(int num_inputs) {
     case 64:
         return LOUDSPEAKER_ARRAY_PRESET_SPH_COV_64;
     default:
-        return LOUDSPEAKER_ARRAY_PRESET_DEFAULT; // Default preset
+        return -1; // Default preset
     }
 }
 

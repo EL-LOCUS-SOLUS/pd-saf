@@ -116,8 +116,7 @@ function mcmeter:dsp(samplerate, blocksize, inchans)
 	end
 
 	self:set_size(self.width, self.height)
-	self:repaint(1)
-	self:repaint(2)
+	self:repaint()
 end
 
 -- ─────────────────────────────────────

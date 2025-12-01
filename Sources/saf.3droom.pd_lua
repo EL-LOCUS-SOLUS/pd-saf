@@ -110,7 +110,7 @@ end
 --╰─────────────────────────────────────╯
 function projection:initialize(name, args)
 	self.inlets = 1
-	self.outlets = 1
+	self.outlets = 2
 
 	-- initialization
 	self.rotation_x = 0
@@ -310,6 +310,37 @@ function projection:in_1_time(args)
 	end
 
 	self.trajectories[index]["time"] = times
+end
+
+-- ─────────────────────────────────────
+function projection:in_1_roomdim(args)
+	self.room_xyz = {
+		x = args[1],
+		y = args[2],
+		z = args[3],
+	}
+	self:repaint()
+end
+
+function projection:in_1_speaker(args)
+	if not args or #args < 3 then
+		return
+	end
+
+	local index = math.floor(tonumber(args[1]) or 0)
+	if index < 1 then
+		self:error("Speaker index must be >= 1")
+		return
+	end
+
+	local azimuth = tonumber(args[2]) or 0
+	local elevation = tonumber(args[3]) or 0
+	local radius = tonumber(args[4]) or 0.5
+
+	self:outlet(2, "speaker", { index, azimuth, elevation })
+	local x, y, z = self:azimuth_elevation_to_xyz(azimuth, elevation, radius)
+	self.speakers[index] = { x, y, z }
+	self:repaint()
 end
 
 -- ─────────────────────────────────────
@@ -793,9 +824,9 @@ function projection:paint(g)
 	end
 
 	-- DRAW SPEAKERS
-	g:set_color(255, 165, 0) -- Orange color for speakers
+	g:set_color(255, 165, 0)
 
-	for _, speaker in ipairs(self.speakers) do
+	for _, speaker in pairs(self.speakers) do
 		-- Posição original
 		local sx, sy, sz = speaker[1], speaker[2], speaker[3]
 
@@ -958,7 +989,11 @@ function projection:paint_layer_4(g)
 		local point = trajectory.point
 
 		if point and trajectory.redraw then
-			self:outlet(1, "source", { index, point[1], point[2], point[3] })
+			self:outlet(
+				1,
+				"source",
+				{ index, point[1] * self.room_xyz.x, point[2] * self.room_xyz.y, point[3] * self.room_xyz.z }
+			)
 
 			local scaled = {
 				point[1] * self.scale_xyz.x,
@@ -1036,6 +1071,19 @@ function projection:draw_3d_axis(g, axis_vec, label, color, scale, offsetX, offs
 	g:draw_line(p1[1], p1[2], p2[1], p2[2], 1.5)
 
 	g:draw_text(label, p2[1] + 3, p2[2] + 3, 12, 12)
+end
+
+function projection:azimuth_elevation_to_xyz(azimuth_deg, elevation_deg, radius)
+	radius = radius or 0.5
+	local az = math.rad(azimuth_deg or 0)
+	local el = math.rad(elevation_deg or 0)
+
+	local cosEl = math.cos(el)
+	local x = -radius * math.sin(az) * cosEl
+	local y = radius * math.sin(el)
+	local z = -radius * math.cos(az) * cosEl
+
+	return x, y, z
 end
 
 -- ─────────────────────────────────────
