@@ -211,10 +211,12 @@ pd_add_external(saf.roomsim~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/roomsim~.c;${R
 file(GLOB DECODER_SRC "${CMAKE_CURRENT_SOURCE_DIR}/Libraries/Spatial_Audio_Framework/examples/src/ambi_dec/*.c")
 pd_add_external(saf.decoder~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/decoder~.c;${DECODER_SRC}" LINK_LIBRARIES saf)
 
-# # ───────────────────────────────────── file(GLOB BINAURAL_TILDE_SOURCE
-# "${CMAKE_CURRENT_SOURCE_DIR}/Libraries/Spatial_Audio_Framework/examples/src/ambi_bin/*.c")
-# pd_add_external(saf.binaural~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/binaural~.c;${BINAURAL_TILDE_SOURCE}"
-# LINK_LIBRARIES saf)
+# # ─────────────────────────────────────
+file(GLOB BINAURAL_TILDE_SOURCE
+     "${CMAKE_CURRENT_SOURCE_DIR}/Libraries/Spatial_Audio_Framework/examples/src/ambi_bin/*.c")
+
+pd_add_external(saf.binaural~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/binaural~.c;${BINAURAL_TILDE_SOURCE}" LINK_LIBRARIES
+                saf)
 
 # ─────────────────────────────────────
 # file(GLOB PITCHSHIFTER_TILDE_SOURCE
