@@ -28,7 +28,7 @@
 #X obj 4 465 cnv 3 550 3 empty empty inlets 8 12 0 13 #dcdcdc #000000 0;
 #X obj 112 471 cnv 17 3 55 empty empty 0 5 9 0 16 #dcdcdc #9c9c9c 0;
 #X text 146 470 float/signal;
-#N canvas 581 515 785 515 other_messages 1;
+#N canvas 581 515 785 515 other_messages 0;
 #X text 12 10 sofafile <.sofa file>;
 #X text 286 10 - Set .sofa file, f 80;
 #X text 12 36 use_default_hrirs 0|1;
@@ -100,10 +100,11 @@
 #X obj 292 305 else/saf.binaural~ -m;
 #X obj 292 354 dac~ 1;
 #X obj 118 152 tgl 16 0 empty empty empty 0 -8 0 10 #fcfcfc #000000 #000000 0 1;
-#X msg 118 176 yzview \$1;
-#X obj 337 329 else/saf.meter~ -width 6 -height 60 -frames 20 -inchs 2;
+#X msg 118 172 yzview \$1;
+#X obj 361 354 else/saf.meter~ -width 6 -height 60 -frames 20 -inchs 2;
 #X text 20 82 [saf.binarual~] is an ambisonic decoder (up to 10th order) with a built-in SOFA loader and head-tracking. Includes: Least-Squares (LS) \, spatial re-sampling (SPR \, virtual loudspeakers) \, time-alignment (TA) \, and magnitude least-squares (Mag-LS) decoding options., f 84;
 #X obj 292 270 else/saf.roomsim~ -m 1;
+#X obj 361 333 *~ 8;
 #X connect 26 0 31 0;
 #X connect 31 0 29 0;
 #X connect 31 1 30 0;
@@ -115,7 +116,8 @@
 #X connect 34 0 36 0;
 #X connect 35 0 42 0;
 #X connect 36 0 37 0;
-#X connect 36 0 40 0;
+#X connect 36 0 43 0;
 #X connect 38 0 39 0;
 #X connect 39 0 31 0;
 #X connect 42 0 36 0;
+#X connect 43 0 40 0;

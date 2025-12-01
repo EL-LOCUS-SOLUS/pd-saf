@@ -49,7 +49,7 @@
 #X text 194 498 (none);
 #X text 109 575 -height <float>: height of the object, f 66;
 #X text 108 591 -frames <float>: number of frames per second, f 66;
-#X obj 24 249 else/saf.meter~ -width 8 -height 120 -frames 20 -inchs 4;
+#X obj 24 249 else/saf.meter~ -width 8 -height 120 -frames 40 -inchs 4;
 #X connect 16 0 45 0;
 #X connect 17 0 16 0;
 #X connect 18 0 16 1;
