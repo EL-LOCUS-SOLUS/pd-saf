@@ -1,4 +1,4 @@
-#N canvas 530 150 694 649 10;
+#N canvas 530 150 575 653 10;
 #X declare -lib else;
 #X obj 306 6 cnv 15 250 40 empty empty empty 12 13 0 18 #7c7c7c #e0e4dc 0;
 #N canvas 382 141 749 319 (subpatch) 0;
