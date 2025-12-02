@@ -271,6 +271,19 @@ t_int *binaural_tilde_perform(t_int *w) {
 
 // ─────────────────────────────────────
 void binaural_tilde_dsp(t_binaural_tilde *x, t_signal **sp) {
+    if (!x->multichannel && sp[0]->s_nchans > 1) {
+        for (int i = 0; i < x->nIn; i++) {
+            signal_setmultiout(&sp[x->nIn], 1);
+            dsp_add_zero(sp[i]->s_vec, sp[i]->s_n);
+        }
+        for (int i = 0; i < x->nOut; i++) {
+            signal_setmultiout(&sp[x->nIn + i], 1);
+            dsp_add_zero(sp[x->nIn + i]->s_vec, sp[x->nIn + i]->s_n);
+        }
+        pd_error(x, "[saf.binaural~] Expected mono input. Use -m flag to multichannel");
+        return;
+    }
+
     // Set frame sizes and reset indices
     x->nAmbiFrameSize = ambi_bin_getFrameSize();
     x->nPdFrameSize = sp[0]->s_n;
@@ -319,15 +332,20 @@ void *binaural_tilde_new(t_symbol *s, int argc, t_atom *argv) {
     t_binaural_tilde *x = (t_binaural_tilde *)pd_new(binaural_tilde_class);
     x->glist = canvas_getcurrent(); // TODO: add HRIR reader
 
-    if (argv[0].a_type == A_SYMBOL) {
-        if (strcmp(atom_getsymbol(argv)->s_name, "-m") != 0) {
-            pd_error(x, "[saf.decoder~] Expected '-m' in second argument.");
-            return NULL;
-        }
-        x->multichannel = 1;
-    } else {
+    if (argc == 0) {
         x->multichannel = 0;
-        x->nIn = atom_getint(argv);
+        x->nIn = 1;
+    } else {
+        if (argv[0].a_type == A_SYMBOL) {
+            if (strcmp(atom_getsymbol(argv)->s_name, "-m") != 0) {
+                pd_error(x, "[saf.decoder~] Expected '-m' in second argument. Multichannel mode "
+                            "will be activated anyway");
+            }
+            x->multichannel = 1;
+        } else {
+            x->multichannel = 0;
+            x->nIn = atom_getint(argv);
+        }
     }
 
     x->nOut = 2;

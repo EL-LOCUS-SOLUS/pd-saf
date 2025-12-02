@@ -170,8 +170,7 @@ static void decoder_tilde_set(t_decoder_tilde *x, t_symbol *s, int argc, t_atom 
             ambi_dec_setUseDefaultHRIRsflag(x->hAmbi, 1);
             x->use_sofa = 1;
         }
-    }
-    else if (strcmp(method, "use_default_hrirs") == 0) {
+    } else if (strcmp(method, "use_default_hrirs") == 0) {
         t_float state = atom_getfloat(argv);
         ambi_dec_setUseDefaultHRIRsflag(x->hAmbi, state);
     } else if (strcmp(method, "binaural") == 0) {
@@ -370,6 +369,18 @@ t_int *decoder_tilde_perform(t_int *w) {
 
 // ─────────────────────────────────────
 void decoder_tilde_dsp(t_decoder_tilde *x, t_signal **sp) {
+    if (!x->multichannel && sp[0]->s_nchans > 1) {
+        for (int i = 0; i < x->nIn; i++) {
+            signal_setmultiout(&sp[x->nIn], 1);
+            dsp_add_zero(sp[i]->s_vec, sp[i]->s_n);
+        }
+        for (int i = 0; i < x->nOut; i++) {
+            signal_setmultiout(&sp[x->nIn + i], 1);
+            dsp_add_zero(sp[x->nIn + i]->s_vec, sp[x->nIn + i]->s_n);
+        }
+        pd_error(x, "[saf.decoder~] Expected mono input. Use -m flag to multichannel");
+        return;
+    }
     x->nAmbiFrameSize = ambi_dec_getFrameSize();
     x->nPdFrameSize = sp[0]->s_n;
     x->nOutAccIndex = 0;
@@ -455,19 +466,23 @@ void *decoder_tilde_new(t_symbol *s, int argc, t_atom *argv) {
 
     int order = 1;
     int num_loudspeakers = 4;
-    if (argv[0].a_type == A_SYMBOL) {
-        if (strcmp(atom_getsymbol(argv)->s_name, "-m") != 0) {
-            pd_error(x, "[saf.decoder~] Expected '-m' in second argument.");
-            return NULL;
-        }
-        // order is decided (and updated inside dsp) by the inputs channels from saf.encoder~
-        order = 1;
-        num_loudspeakers = (argc >= 2) ? atom_getint(argv + 1) : 4;
-        x->multichannel = 1;
-    } else {
-        order = (argc >= 1) ? atom_getint(argv) : 1;
-        num_loudspeakers = (argc >= 2) ? atom_getint(argv + 1) : 1;
+    if (argc == 0) {
         x->multichannel = 0;
+    } else {
+        if (argv[0].a_type == A_SYMBOL) {
+            if (strcmp(atom_getsymbol(argv)->s_name, "-m") != 0) {
+                pd_error(x, "[saf.decoder~] Expected '-m' in second argument.");
+                return NULL;
+            }
+            // order is decided (and updated inside dsp) by the inputs channels from saf.encoder~
+            order = 1;
+            num_loudspeakers = (argc >= 2) ? atom_getint(argv + 1) : 4;
+            x->multichannel = 1;
+        } else {
+            order = (argc >= 1) ? atom_getint(argv) : 1;
+            num_loudspeakers = (argc >= 2) ? atom_getint(argv + 1) : 1;
+            x->multichannel = 0;
+        }
     }
 
     order = order < 0 ? 0 : order;

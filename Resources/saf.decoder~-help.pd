@@ -124,7 +124,6 @@
 #X obj 15 354 s enc;
 #X obj 208 354 s dec;
 #X obj 312 178 r dec;
-#X obj 222 205 else/saf.decoder~ -m 4;
 #X obj 15 149 else/saf.panning -size 200 -nsources 4 -nspeakers 4;
 #N canvas 525 374 834 664 other_messages 0;
 #X text 12 10 sofafile <.sofa file>;
@@ -168,11 +167,12 @@
 #X text 13 123 transitionfreq <freq>;
 #X text 287 123 - Sets the frequeny at which to transition from the low frequency decoder to the high frequency decoder., f 80;
 #X restore 150 437 pd other_messages;
-#X connect 19 0 34 0;
-#X connect 19 1 33 0;
-#X connect 28 0 33 0;
+#X obj 222 205 else/saf.decoder~;
+#X connect 19 0 33 0;
+#X connect 19 1 35 0;
+#X connect 28 0 35 0;
 #X connect 29 0 28 0;
-#X connect 32 0 33 0;
-#X connect 33 0 17 0;
-#X connect 34 0 30 0;
-#X connect 34 1 31 0;
+#X connect 32 0 35 0;
+#X connect 33 0 30 0;
+#X connect 33 1 31 0;
+#X connect 35 0 17 0;
