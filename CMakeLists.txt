@@ -76,6 +76,7 @@ elseif(EMSCRIPTEN)
     set(OPENBLAS_FILE "${CMAKE_BINARY_DIR}/OpenBLAS.zip")
     set(OPENBLAS_SOURCE_DIR "${CMAKE_BINARY_DIR}/OpenBLAS") # Nome fixo da pasta extraída
     set(OPENBLAS_TEMP_DIR "${CMAKE_BINARY_DIR}/OpenBLAS-temp") # Pasta temporária
+    set(SAF_PERFORMANCE_LIB SAF_USE_OPEN_BLAS_AND_LAPACKE)
 
     # Baixar OpenBLAS se não existir
     if(NOT EXISTS ${OPENBLAS_FILE})
@@ -124,19 +125,6 @@ elseif(APPLE)
     message(WARNING "Using SAF_USE_APPLE_ACCELERATE_ILP64")
 endif()
 
-# FFTW3
-cpmaddpackage(
-    NAME
-    fftw3
-    EXCLUDE_FROM_ALL
-    YES
-    URL
-    https://www.fftw.org/fftw-3.3.11.tar.gz
-    OPTIONS
-    "BUILD_SHARED_LIBS OFF"
-    "CMAKE_POSITION_INDEPENDENT_CODE ON"
-    "ENABLE_FLOAT OFF")
-
 # ╭──────────────────────────────────────╮
 # │                 SAF                  │
 # ╰──────────────────────────────────────╯
@@ -153,7 +141,7 @@ target_include_directories(
 target_include_directories(saf PUBLIC "${saf_SOURCE_DIR}/../examples/include/")
 if(NOT APPLE AND NOT EMSCRIPTEN)
     target_link_options(saf INTERFACE -static-libgcc -static-libstdc++)
-    target_link_libraries(saf PUBLIC fftw3 gfortran)
+    target_link_libraries(saf PUBLIC gfortran)
 endif()
 
 # ╭──────────────────────────────────────╮

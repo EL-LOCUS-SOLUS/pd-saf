@@ -297,7 +297,7 @@ void binaural_tilde_dsp(t_binaural_tilde *x, t_signal **sp) {
     // add this in another thread
     if (ambi_bin_getCodecStatus(x->hAmbi) == CODEC_STATUS_NOT_INITIALISED) {
         ambi_bin_init(x->hAmbi, sys_getsr());
-        ambi_bin_setNormType(x->hAmbi, NORM_N3D);
+        ambi_bin_setNormType(x->hAmbi, NORM_SN3D);
         ambi_bin_setInputOrderPreset(x->hAmbi, (SH_ORDERS)get_ambisonic_order(x->nIn));
         logpost(x, 2, "[saf.binaural~] Initializing decoder codec...");
         pthread_t initThread;

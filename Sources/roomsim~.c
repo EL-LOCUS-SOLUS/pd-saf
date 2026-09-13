@@ -33,6 +33,8 @@ typedef struct _ambi_roomsim {
     int nPreviousIn;
     int nPreviousOut;
 
+    float roomDim[3];
+
     int multichannel;
 } t_ambi_roomsim_tilde;
 
@@ -113,9 +115,9 @@ static void ambiroom_tilde_set(t_ambi_roomsim_tilde *x, t_symbol *s, int argc, t
             pd_error(x, "[saf.roomsim~] Source index must be between 1 and %d", x->nIn);
             return;
         }
-        float pos_x = atom_getfloat(argv + 1);
-        float pos_y = atom_getfloat(argv + 2);
-        float pos_z = atom_getfloat(argv + 3);
+        float pos_x = atom_getfloat(argv + 1) + x->roomDim[0] * 0.5f;
+        float pos_y = atom_getfloat(argv + 2) + x->roomDim[1] * 0.5f;
+        float pos_z = atom_getfloat(argv + 3) + x->roomDim[2] * 0.5f;
         ambi_roomsim_setSourceX(x->hAmbi, index, pos_x);
         ambi_roomsim_setSourceY(x->hAmbi, index, pos_y);
         ambi_roomsim_setSourceZ(x->hAmbi, index, pos_z);
@@ -134,9 +136,9 @@ static void ambiroom_tilde_set(t_ambi_roomsim_tilde *x, t_symbol *s, int argc, t
             pd_error(x, "[saf.roomsim~] Use 'receivers' to set more receivers");
             return;
         }
-        float pos_x = atom_getfloat(argv + 1);
-        float pos_y = atom_getfloat(argv + 2);
-        float pos_z = atom_getfloat(argv + 3);
+        float pos_x = atom_getfloat(argv + 1) + x->roomDim[0] * 0.5f;
+        float pos_y = atom_getfloat(argv + 2) + x->roomDim[1] * 0.5f;
+        float pos_z = atom_getfloat(argv + 3) + x->roomDim[2] * 0.5f;
         ambi_roomsim_setReceiverX(x->hAmbi, index, pos_x);
         ambi_roomsim_setReceiverY(x->hAmbi, index, pos_y);
         ambi_roomsim_setReceiverZ(x->hAmbi, index, pos_z);
@@ -160,6 +162,9 @@ static void ambiroom_tilde_set(t_ambi_roomsim_tilde *x, t_symbol *s, int argc, t
         float x_pos = atom_getfloat(argv);
         float y_pos = atom_getfloat(argv + 1);
         float z_pos = atom_getfloat(argv + 2);
+        x->roomDim[0] = x_pos;
+        x->roomDim[1] = y_pos;
+        x->roomDim[2] = z_pos;
         ambi_roomsim_setRoomDimX(x->hAmbi, x_pos);
         ambi_roomsim_setRoomDimY(x->hAmbi, y_pos);
         ambi_roomsim_setRoomDimZ(x->hAmbi, z_pos);
@@ -184,6 +189,10 @@ static void ambiroom_tilde_set(t_ambi_roomsim_tilde *x, t_symbol *s, int argc, t
         }
         ambi_roomsim_setMaxReflectionOrder(x->hAmbi, maxReflectionOrder);
     } else if (strcmp(method, "wallabscoeff") == 0) {
+        if (argc < 6) {
+            pd_error(x, "[saf.roomsim~] Use 'wallabscoeff <x+> <x-> <y+> <y-> <z+> <z->'");
+            return;
+        }
         float coeffx_plus = atom_getfloat(argv);
         float coeffx_minus = atom_getfloat(argv + 1);
         float coeffy_plus = atom_getfloat(argv + 2);
@@ -191,11 +200,11 @@ static void ambiroom_tilde_set(t_ambi_roomsim_tilde *x, t_symbol *s, int argc, t
         float coeffz_plus = atom_getfloat(argv + 4);
         float coeffz_minus = atom_getfloat(argv + 5);
         pd_assert(x, coeffx_plus >= 0, "[saf.roomsim~] First value must be positive or 0");
-        pd_assert(x, coeffx_minus < 0, "[saf.roomsim~] Second value must be negative");
+        pd_assert(x, coeffx_minus >= 0, "[saf.roomsim~] Second value must be positive or 0");
         pd_assert(x, coeffy_plus >= 0, "[saf.roomsim~] Third value must be positive or 0");
-        pd_assert(x, coeffy_minus < 0, "[saf.roomsim~] Fourth value must be negative");
+        pd_assert(x, coeffy_minus >= 0, "[saf.roomsim~] Fourth value must be positive or 0");
         pd_assert(x, coeffz_plus >= 0, "[saf.roomsim~] Fifth value must be positive or 0");
-        pd_assert(x, coeffz_minus < 0, "[saf.roomsim~] Sixth value must be negative");
+        pd_assert(x, coeffz_minus >= 0, "[saf.roomsim~] Sixth value must be positive or 0");
 
         ambi_roomsim_setWallAbsCoeff(x->hAmbi, 0, 0, coeffx_plus);
         ambi_roomsim_setWallAbsCoeff(x->hAmbi, 0, 1, coeffx_minus);
@@ -413,12 +422,15 @@ void *ambiroom_tilde_new(t_symbol *s, int argc, t_atom *argv) {
     x->nOut = (order + 1) * (order + 1);
     x->nInAccIndex = 0;
     x->nReceivers = 1;
+    x->roomDim[0] = 5.0f;
+    x->roomDim[1] = 5.0f;
+    x->roomDim[2] = 5.0f;
 
     ambi_roomsim_create(&x->hAmbi);
     ambi_roomsim_setEnableIMSflag(x->hAmbi, 0);
     ambi_roomsim_setNumReceivers(x->hAmbi, x->nReceivers);
     ambi_roomsim_setOutputOrder(x->hAmbi, x->nOrder);
-    ambi_roomsim_setNormType(x->hAmbi, NORM_N3D);
+    ambi_roomsim_setNormType(x->hAmbi, NORM_SN3D);
 
     ambi_roomsim_setReceiverX(x->hAmbi, 0, 2.5);
     ambi_roomsim_setReceiverY(x->hAmbi, 0, 2.5);

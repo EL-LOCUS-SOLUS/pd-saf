@@ -437,14 +437,18 @@ void decoder_tilde_dsp(t_decoder_tilde *x, t_signal **sp) {
         return;
     }
 
-    int nOrder = get_ambisonic_order(x->nOut);
+    int inputOrder = get_ambisonic_order(x->nIn);
+    if ((inputOrder + 1) * (inputOrder + 1) != x->nIn) {
+        pd_error(x, "[saf.decoder~] Expected a complete Ambisonic channel set, got %d channels",
+                 x->nIn);
+        return;
+    }
     if (ambi_dec_getCodecStatus(x->hAmbi) == CODEC_STATUS_NOT_INITIALISED) {
-        ambi_dec_setNormType(x->hAmbi, NORM_N3D);
-        if (x->nOrder < 1 || x->binaural) {
-            ambi_dec_setMasterDecOrder(x->hAmbi, 1);
-            ambi_dec_setBinauraliseLSflag(x->hAmbi, 1);
-        } else {
-            ambi_dec_setMasterDecOrder(x->hAmbi, nOrder);
+        ambi_dec_setNormType(x->hAmbi, NORM_SN3D);
+        ambi_dec_setMasterDecOrder(x->hAmbi, inputOrder);
+        ambi_dec_setDecOrderAllBands(x->hAmbi, inputOrder);
+        ambi_dec_setBinauraliseLSflag(x->hAmbi, x->binaural);
+        if (!x->binaural) {
             ambi_dec_setBinauraliseLSflag(x->hAmbi, 0);
             int preset = get_loudspeaker_array_preset(x->nOut);
             if (preset == -1) {
@@ -460,8 +464,8 @@ void decoder_tilde_dsp(t_decoder_tilde *x, t_signal **sp) {
 
         // decoder_tilde_configure_default_speakers(x);
 
-        ambi_dec_setDecMethod(x->hAmbi, DECODING_METHOD_SAD, 0);
-        ambi_dec_setDecMethod(x->hAmbi, DECODING_METHOD_SAD, 1);
+        ambi_dec_setDecMethod(x->hAmbi, 0, DECODING_METHOD_SAD);
+        ambi_dec_setDecMethod(x->hAmbi, 1, DECODING_METHOD_SAD);
 
         logpost(x, 2, "[saf.decoder~] Initializing decoder codec...");
         pthread_t initThread;

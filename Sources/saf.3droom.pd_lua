@@ -1,4 +1,4 @@
-local projection = pd.Class:new():register("saf.3droom2")
+local projection = pd.Class:new():register("saf.3droom")
 
 --╭─────────────────────────────────────╮
 --│               BUTTON                │

@@ -1,4 +1,4 @@
-#N canvas 0 0 925 1132 10;
+#N canvas 0 0 1485 1131 10;
 #X declare -path ../.build;
 #X declare -lib xlab;
 #X obj 306 6 cnv 15 250 40 empty empty empty 12 13 0 18 #7c7c7c #e0e4dc 0;
@@ -90,9 +90,12 @@
 #X obj 18 140 declare -lib xlab;
 #X obj 89 234 saf.meter~ -width 8 -height 120 -frames 20 -inchs 1;
 #X obj 26 255 dac~ 1;
+#X obj 471 224 else/meter;
+#X obj 471 246 nbx 5 16 -1e+37 1e+37 0 0 empty empty empty 0 -9 0 10 #fcfcfc #000000 #000000 0 256;
 #X connect 27 0 34 0;
 #X connect 31 0 30 0;
 #X connect 32 0 31 0;
 #X connect 33 0 34 0;
 #X connect 34 0 36 0;
 #X connect 34 0 37 0;
+#X connect 38 0 39 0;

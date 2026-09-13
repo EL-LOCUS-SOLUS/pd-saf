@@ -102,24 +102,19 @@ function roompanning:clamp(value, minv, maxv)
 end
 
 -- ─────────────────────────────────────
--- The room GUI uses the SAF listening convention (+X front, +Y left,
--- +Z up). The room simulator's public Y position, however, is measured from
--- the opposite side of the room and is flipped internally before generating
--- the spherical-harmonic directions. Mirror Y at this boundary so that a
--- source drawn on the left is encoded at a positive (leftward) azimuth.
-function roompanning:to_roomsim_coords(coords)
-	return coords.x, self.room.y - coords.y, coords.z
+function roompanning:to_centered_coords(coords)
+	return coords.x - self.room.x * 0.5, coords.y - self.room.y * 0.5, coords.z - self.room.z * 0.5
 end
 
 -- ─────────────────────────────────────
 function roompanning:output_source(index, coords)
-	local x, y, z = self:to_roomsim_coords(coords)
+	local x, y, z = self:to_centered_coords(coords)
 	self:outlet(1, "source", { index, x, y, z })
 end
 
 -- ─────────────────────────────────────
 function roompanning:output_receiver(index, coords)
-	local x, y, z = self:to_roomsim_coords(coords)
+	local x, y, z = self:to_centered_coords(coords)
 	self:outlet(1, "receiver", { index, x, y, z })
 end
 
@@ -250,9 +245,9 @@ function roompanning:in_1_source(args)
 
 	local src = self:get_or_create_source(index)
 	src.coords = {
-		x = self:clamp(xm, 0, self.room.x),
-		y = self:clamp(ym, 0, self.room.y),
-		z = self:clamp(zm, 0, self.room.z),
+		x = self:clamp(xm + self.room.x * 0.5, 0, self.room.x),
+		y = self:clamp(ym + self.room.y * 0.5, 0, self.room.y),
+		z = self:clamp(zm + self.room.z * 0.5, 0, self.room.z),
 	}
 
 	src.selected = false
@@ -281,9 +276,9 @@ function roompanning:in_1_set(args)
 		local zm = tonumber(args[5]) or 0
 
 		local src = self:get_or_create_source(index)
-		src.coords.x = self:clamp(xm, 0, self.room.x)
-		src.coords.y = self:clamp(ym, 0, self.room.y)
-		src.coords.z = self:clamp(zm, 0, self.room.z)
+		src.coords.x = self:clamp(xm + self.room.x * 0.5, 0, self.room.x)
+		src.coords.y = self:clamp(ym + self.room.y * 0.5, 0, self.room.y)
+		src.coords.z = self:clamp(zm + self.room.z * 0.5, 0, self.room.z)
 		src.selected = false
 
 		self:output_source(index, src.coords)
@@ -359,13 +354,19 @@ function roompanning:in_1_receiver(args)
 		self.receivers[index] = recv
 	end
 
-	local xm = tonumber(args[2]) or recv.coords.x
-	local ym = tonumber(args[3]) or recv.coords.y
-	local zm = tonumber(args[4]) or recv.coords.z
+	local xm = tonumber(args[2])
+	local ym = tonumber(args[3])
+	local zm = tonumber(args[4])
 
-	recv.coords.x = self:clamp(xm, 0, self.room.x)
-	recv.coords.y = self:clamp(ym, 0, self.room.y)
-	recv.coords.z = self:clamp(zm, 0, self.room.z)
+	if xm then
+		recv.coords.x = self:clamp(xm + self.room.x * 0.5, 0, self.room.x)
+	end
+	if ym then
+		recv.coords.y = self:clamp(ym + self.room.y * 0.5, 0, self.room.y)
+	end
+	if zm then
+		recv.coords.z = self:clamp(zm + self.room.z * 0.5, 0, self.room.z)
+	end
 
 	self:output_receiver(index, recv.coords)
 	self:repaint(2)
