@@ -1,11 +1,18 @@
 ---
-name: Compile PureData Object
+name: Build and publish Pure Data package
 on:
     push:
         branches: [main]
+    workflow_dispatch:
+        inputs:
+            publish_release:
+                description: Upload to Deken and create a draft GitHub Release using LIBVERSION
+                required: false
+                type: boolean
+                default: false
 env:
     LIBNAME: saf
-    LIBVERSION: 0.0.1
+    LIBVERSION: 0.1.0
 permissions:
     contents: write
 jobs:
@@ -13,9 +20,11 @@ jobs:
         runs-on: ${{ matrix.machines }}
         strategy:
             matrix:
-                precision: [32, 64]
-                machines: [macos-15-intel, macos-latest]
+                precision: [32]
+                machines: [macos-latest]
         steps:
+            - uses: actions/setup-python@v5
+              with:
             - uses: actions/checkout@v4
               with:
                   submodules: recursive
@@ -23,23 +32,27 @@ jobs:
             - name: Install PureData and Deps
               run: |
                   brew install pd
+                  brew install boost
             - name: Build
               run: |
-                  cmake -S . -B build -DPD_FLOATSIZE=${{ matrix.precision }} -DPD_LIB_DIR=. -DCMAKE_BUILD_TYPE=Release
-                  cmake --build build --parallel
-                  sudo cmake --install build --prefix .
+                  cmake . -B build -DPD_OUTPUT_PATH="${{ github.workspace }}/${{ env.LIBNAME }}" -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64" -DPD_FLOATSIZE=${{ matrix.precision }} 
+                  cmake --build build -j4
             - name: Upload Object
               uses: actions/upload-artifact@v4
               with:
-                  name: ${{env.LIBNAME}}-${{env.LIBVERSION}}-${{matrix.machines}}-pd${{matrix.precision}}
-                  path: ${{env.LIBNAME}}
+                  name: ${{env.LIBNAME}}-${{env.LIBVERSION}}-${{matrix.machines}}-universal-pd${{matrix.precision}}
+                  path: ${{ github.workspace }}/${{ env.LIBNAME }}
+                  if-no-files-found: error
     linux-build:
         runs-on: ubuntu-latest
         strategy:
             matrix:
-                arch: [amd64]
-                precision: [32, 64]
+                arch: [amd64] #, arm, aarch64]
+                precision: [32]
         steps:
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: 3.13
             - uses: actions/checkout@v4
               with:
                   submodules: recursive
@@ -49,39 +62,54 @@ jobs:
                   sudo apt update
                   sudo add-apt-repository ppa:pure-data/pure-data -y
                   sudo apt install puredata -y
-            - name: Install aarch64 gcc
-              if: matrix.arch == 'aarch64'
+                  sudo apt install libpipewire-0.3-dev -y
+                  sudo apt install libfreetype6-dev libx11-dev libxext-dev libxinerama-dev libxcursor-dev libxrandr-dev libxcomposite-dev libglib2.0-dev libgtk-3-dev libasound2-dev libpulse-dev libcurl4-openssl-dev libssl-dev libfftw3-dev libsndfile1-dev libsqlite3-dev libz-dev libboost-dev -y
+            - name: Install compiler
+              id: compiler
               run: |
-                  sudo apt install gcc-aarch64-linux-gnu -y
-                  sudo apt install g++-aarch64-linux-gnu -y
-                  cmake . -B build -DPD_FLOATSIZE=${{ matrix.precision }} -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} -DPD_LIB_DIR=. -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++
-            - name: Install arm gcc
-              if: matrix.arch == 'arm'
-              run: |
-                  sudo apt install gcc-arm-linux-gnueabihf -y
-                  sudo apt install g++-arm-linux-gnueabihf -y
-                  cmake . -B build -DPD_FLOATSIZE=${{ matrix.precision }} -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} -DPD_LIB_DIR=. -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc -DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++
+                  arch=""
+                  test "${{ matrix.arch }}" != "aarch64" || arch="aarch64-linux-gnu"
+                  test "${{ matrix.arch }}" != "arm" || arch="arm-linux-gnueabihf"
+                  if test -n "${arch}"; then
+                    sudo apt-get install -y gcc-${arch} g++-${arch}
+                    echo "arch=${arch}" >> $GITHUB_OUTPUT
+                  fi
             - name: Configure
-              if: matrix.arch == 'amd64'
               run: |
-                  cmake . -B build -DPD_FLOATSIZE=${{ matrix.precision }} -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} -DPD_LIB_DIR=. -DCMAKE_BUILD_TYPE=Release
+                  arch="${{ steps.compiler.outputs.arch }}"
+                  openblas_target=""
+                  case "${{ matrix.arch }}" in
+                    aarch64) openblas_target="ARMV8" ;;
+                    arm) openblas_target="ARMV7" ;;
+                  esac
+                  cmake . -B build \
+                    -DPD_FLOATSIZE=${{ matrix.precision }} \
+                    -DPD_OUTPUT_PATH="${{ github.workspace }}/${{ env.LIBNAME }}" \
+                    -DCMAKE_BUILD_TYPE=Release \
+                    ${arch:+-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }}} \
+                    ${arch:+-DCMAKE_C_COMPILER=${arch}-gcc -DCMAKE_CXX_COMPILER=${arch}-g++} \
+                    ${arch:+${openblas_target:+-DTARGET=${openblas_target}}}
             - name: Build Object
               run: |
                   cmake --build build -- -j$(nproc)
-                  sudo cmake --install build --prefix .
+                  #cmake --install build
             - name: Upload Object
               uses: actions/upload-artifact@v4
               with:
-                  name: ${{env.LIBNAME}}-${{env.LIBVERSION}}-${{matrix.arch}}-pd${{matrix.precision}}
-                  path: ${{env.LIBNAME}}
+                  name: ${{env.LIBNAME}}-${{env.LIBVERSION}}-ubuntu-latest-${{matrix.arch}}-pd${{matrix.precision}}
+                  path: ${{ github.workspace }}/${{ env.LIBNAME }}
+                  if-no-files-found: error
     windows-build:
         runs-on: windows-latest
         strategy:
             matrix:
                 compiler: [mingw]
                 arch: [amd64]
-                precision: [32, 64]
+                precision: [32]
         steps:
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: 3.13
             - name: Checkout repository
               uses: actions/checkout@v4
               with:
@@ -92,7 +120,7 @@ jobs:
               uses: msys2/setup-msys2@v2
               with:
                   msystem: mingw64
-                  install: make mingw-w64-x86_64-gcc mingw64/mingw-w64-x86_64-cmake mingw-w64-x86_64-gcc-fortran
+                  install: make mingw-w64-x86_64-gcc mingw64/mingw-w64-x86_64-cmake mingw-w64-x86_64-gcc-fortran mingw-w64-x86_64-boost
                   update: false
             - name: Install PureData Float 32
               if: matrix.precision == '32'
@@ -106,48 +134,79 @@ jobs:
               shell: msys2 {0}
               if: matrix.compiler == 'mingw'
               run: |
-                  cmake . -B build -DPD_FLOATSIZE=${{ matrix.precision }} -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} -DPD_LIB_DIR=. -DCMAKE_BUILD_TYPE=Release
+                  PD_OUT="$(cygpath -u "$GITHUB_WORKSPACE/$LIBNAME")"
+                  cmake . -B build -DPD_FLOATSIZE=${{ matrix.precision }} -DPD_OUTPUT_PATH="$PD_OUT" -DCMAKE_BUILD_TYPE=Release 
                   cmake --build build --parallel
-                  cmake --install build --prefix .
+                  #cmake --install build
             - name: Upload
               uses: actions/upload-artifact@v4
               with:
-                  name: ${{env.LIBNAME}}-${{env.LIBVERSION}}-${{matrix.machines}}-pd${{matrix.precision}}
-                  path: ${{env.LIBNAME}}
+                  name: ${{env.LIBNAME}}-${{env.LIBVERSION}}-windows-latest-${{matrix.arch}}-pd${{matrix.precision}}
+                  path: ${{ github.workspace }}/${{ env.LIBNAME }}
+                  if-no-files-found: error
+    publish-release:
+        if: ${{ inputs.publish_release }}
+        needs: [macos, linux-build, windows-build]
+        runs-on: ubuntu-latest
+        steps:
+            - name: Download Pure Data artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  pattern: ${{ env.LIBNAME }}-${{ env.LIBVERSION }}-*-pd*
+                  merge-multiple: true
+                  path: release/pd/${{ env.LIBNAME }}
+            - name: Verify release contents
+              run: |
+                  test -d "release/pd/${LIBNAME}"
+                  test -n "$(find "release/pd/${LIBNAME}" -type f -print -quit)"
+                  find release/pd -maxdepth 4 -type f -print
+            - name: Package and upload Pure Data library to Deken
+              shell: bash
+              working-directory: release/pd
+              env:
+                  DEKEN_USERNAME: charlesneimog
+                  DEKEN_PASSWORD: ${{ secrets.DEKEN_PASSWORD }}
+              run: |
+                  if [[ -z "$DEKEN_PASSWORD" ]]; then
+                    echo "::error::Set the DEKEN_PASSWORD repository secret before publishing."
+                    exit 1
+                  fi
 
-#╭──────────────────────────────────────╮
-#│   Here an example to how publish a   │
-#│   release, uncomment the input or    │
-#│            remove the if             │
-#╰──────────────────────────────────────╯
-# publish-release:
-#   if: ${{ github.event.inputs.publish_release == 'true' }}
-#   needs: [macos, linux-build, windows-build]
-#   runs-on: ubuntu-latest
-#   steps:
-#     - name: Download all artifacts
-#       uses: actions/download-artifact@v4
-#       with:
-#         path: artifacts
-#     - name: Create unified onnx directory and archive
-#       run: |
-#         set -e
-#         TOPDIR="$LIBNAME"
-#         mkdir -p "$TOPDIR"
-#         for artifact_dir in artifacts/*; do
-#           [ -d "$artifact_dir" ] || continue
-#           cp -r "$artifact_dir/"* "$TOPDIR/"
-#         done
-#         ls -1 "$TOPDIR"
-#         ZIP_NAME="${LIBNAME}-${LIBVERSION}-all-platforms.zip"
-#         zip -r "$ZIP_NAME" "$TOPDIR"
-#     - name: Create / Update GitHub Release
-#       uses: softprops/action-gh-release@v2
-#       with:
-#         tag_name: v${{ env.LIBVERSION }}
-#         name: ${{ env.LIBNAME }} v${{ env.LIBVERSION }}
-#         target_commitish: ${{ github.sha }}
-#         files: |
-#           ${{ env.LIBNAME }}-${{ env.LIBVERSION }}-all-platforms.zip
-#         draft: true
-#         prerelease: false
+                  docker run --rm \
+                    --user "$(id -u):$(id -g)" \
+                    --volume "${GITHUB_WORKSPACE}:/deken" \
+                    --workdir /deken/release/pd \
+                    registry.git.iem.at/pd/deken \
+                    deken package --version "${LIBVERSION}" "${LIBNAME}"
+
+                  shopt -s nullglob
+                  deken_packages=(*.dek)
+                  if (( ${#deken_packages[@]} == 0 )); then
+                    echo "::error::Deken did not create any .dek packages."
+                    exit 1
+                  fi
+
+                  docker run --rm \
+                    --user "$(id -u):$(id -g)" \
+                    --volume "${GITHUB_WORKSPACE}:/deken" \
+                    --workdir /deken/release/pd \
+                    -e DEKEN_USERNAME -e DEKEN_PASSWORD \
+                    registry.git.iem.at/pd/deken \
+                    deken upload --no-source-error "${deken_packages[@]}"
+            - name: Create all-platforms archive
+              run: |
+                  cd release/pd
+                  zip -r "${GITHUB_WORKSPACE}/${LIBNAME}-${LIBVERSION}-all-platforms.zip" "${LIBNAME}"
+            - name: Create / Update GitHub Release
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: v${{ env.LIBVERSION }}
+                  name: ${{ env.LIBNAME }} v${{ env.LIBVERSION }}
+                  target_commitish: ${{ github.sha }}
+                  generate_release_notes: true
+                  fail_on_unmatched_files: true
+                  files: |
+                      ${{ env.LIBNAME }}-${{ env.LIBVERSION }}-all-platforms.zip
+                      release/pd/*.dek
+                  draft: true
+                  prerelease: false
