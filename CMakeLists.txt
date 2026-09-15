@@ -185,8 +185,8 @@ file(GLOB BINAURALIZER_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/${saf_SOURCE_DIR}/exa
 pd_add_external(saf.binauraliser~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/binauraliser~.c;${BINAURALIZER_SOURCE}"
                 LINK_LIBRARIES saf)
 
-file(GLOB SLDOA_TILDE_SOURCE "${saf_SOURCE_DIR}/examples/src/sldoa/*.c")
-pd_add_external(saf.sldoa~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/sldoa~.c;${SLDOA_TILDE_SOURCE}" LINK_LIBRARIES saf)
+# file(GLOB SLDOA_TILDE_SOURCE "${saf_SOURCE_DIR}/examples/src/sldoa/*.c") pd_add_external(saf.sldoa~
+# "${CMAKE_CURRENT_SOURCE_DIR}/Sources/sldoa~.c;${SLDOA_TILDE_SOURCE}" LINK_LIBRARIES saf)
 
 # ╭──────────────────────────────────────╮
 # │              DATA FILES              │
