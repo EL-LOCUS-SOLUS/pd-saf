@@ -12,7 +12,7 @@ on:
                 default: false
 env:
     LIBNAME: saf
-    LIBVERSION: 0.1.0
+    LIBVERSION: 0.0.1-alpha
 permissions:
     contents: write
 jobs:
@@ -23,8 +23,6 @@ jobs:
                 precision: [32]
                 machines: [macos-latest]
         steps:
-            - uses: actions/setup-python@v5
-              with:
             - uses: actions/checkout@v4
               with:
                   submodules: recursive
