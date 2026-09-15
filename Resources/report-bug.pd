@@ -1,0 +1,9 @@
+#N canvas 666 202 567 586 12;
+#X obj 4 145 pdcontrol;
+#X obj 4 4 bng 19 250 50 0 empty empty empty 0 -10 0 12 #fcfcfc #000000 #000000;
+#X obj 27 4 cnv 19 5 5 empty empty Report\ a\ bug! 0 10 0 12 #ffffff #ff0400 0;
+#X msg 4 121 browse https://github.com/EL-LOCUS-SOLUS/pd-saf/issues/new;
+#X text 2 23 You will need to create a new Github Account!, f 23;
+#X connect 1 0 3 0;
+#X connect 3 0 0 0;
+#X coords 0 -1 1 1 170 55 2 1 1;

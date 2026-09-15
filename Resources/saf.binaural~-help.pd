@@ -1,4 +1,4 @@
-#N canvas 0 0 925 1129 10;
+#N canvas 531 335 563 566 10;
 #X declare -lib else;
 #X obj 306 6 cnv 15 250 40 empty empty empty 12 13 0 18 #7c7c7c #e0e4dc 0;
 #N canvas 382 141 749 319 (subpatch) 0;
@@ -64,7 +64,7 @@
 #X text 151 459 -m: sets to multichannel output (2nd argument is ignored);
 #X text 214 511 - number of inputs (default 1);
 #X text 160 494 1) float - ambisonics order (default 1);
-#N canvas 0 0 925 1129 example 1;
+#N canvas 633 503 427 349 example 0;
 #N canvas 962 173 450 300 pos 0;
 #X obj 32 263 outlet;
 #X obj 37 19 loadbang;
@@ -92,7 +92,7 @@
 #X restore 4 54 pd pos;
 #X text 3 35 Use the mouse!;
 #X obj 4 321 s enc;
-#X obj 197 319 s dec;
+#X obj 158 318 s dec;
 #X obj 4 89 ../Sources/saf.roompanning;
 #X obj 310 120 r enc;
 #X obj 107 36 tgl 16 0 empty empty empty 0 -8 0 10 #fcfcfc #000000 #000000 0 1;
@@ -130,5 +130,7 @@
 #X obj 194 249 dac~ -m;
 #X obj 451 50 declare -lib else;
 #X obj 194 193 saf/saf.binaural~ -m;
+#X obj 268 58 cnv 16 5 5 empty empty Required\ for\ graphics\ objects! 1 1 0 10 #ffffff #ff0400 0;
+#X obj 384 275 report-bug;
 #X connect 28 0 31 0;
 #X connect 31 0 29 0;

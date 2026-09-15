@@ -1,4 +1,4 @@
-#N canvas 0 0 925 1129 10;
+#N canvas 472 209 562 724 10;
 #X declare -lib else;
 #X obj 308 5 cnv 15 250 40 empty empty empty 12 13 0 18 #7c7c7c #e0e4dc 0;
 #N canvas 382 141 749 319 (subpatch) 0;
@@ -103,7 +103,6 @@
 #X obj 453 51 declare -lib else;
 #X obj 6 408 cnv 3 550 3 empty empty inlets 8 12 0 13 #dcdcdc #000000 0;
 #X obj 111 414 cnv 17 3 80 empty empty 0 5 9 0 16 #dcdcdc #9c9c9c 0;
-#X obj 56 194 ../Sources/saf.panning -size 162 -nsources 4 -yzview 1 -nspeakers 10;
 #X obj 135 147 tgl 16 1 empty empty empty 0 -8 0 10 #fcfcfc #000000 #000000 1 1;
 #X obj 270 57 cnv 16 5 5 empty empty Required\ for\ graphics\ objects! 1 1 0 10 #ffffff #ff0400 0;
 #X text 22 81 The [saf.panning] is created to work with [saf.encoder~] e [saf.decoder~]. You can visualize what you are configuring in the objects. They receive all the messages that [saf.encoder~] and [saf.decoder~] \, but here you can visualize your configuration., f 79;
@@ -127,10 +126,12 @@
 #X msg 135 168 yzview \$1;
 #X msg 299 168 size \$1;
 #X obj 299 146 nbx 5 14 -1e+37 1e+37 0 0 empty empty empty 0 -8 0 10 #fcfcfc #000000 #000000 0 256;
-#X connect 14 0 18 0;
-#X connect 19 0 39 0;
-#X connect 25 0 18 0;
-#X connect 26 0 25 0;
-#X connect 39 0 18 0;
-#X connect 40 0 18 0;
-#X connect 41 0 40 0;
+#X obj 56 194 saf/saf.panning -size 162 -nsources 4 -yzview 1 -nspeakers 10;
+#X obj 386 350 report-bug;
+#X connect 14 0 41 0;
+#X connect 18 0 38 0;
+#X connect 24 0 41 0;
+#X connect 25 0 24 0;
+#X connect 38 0 41 0;
+#X connect 39 0 41 0;
+#X connect 40 0 39 0;

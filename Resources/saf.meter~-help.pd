@@ -1,4 +1,4 @@
-#N canvas 0 0 925 1129 10;
+#N canvas 401 150 563 654 10;
 #X declare -lib else;
 #X obj 306 6 cnv 15 250 40 empty empty empty 12 13 0 18 #7c7c7c #e0e4dc 0;
 #N canvas 382 141 749 319 (subpatch) 0;
@@ -50,6 +50,7 @@
 #X text 109 575 -height <float>: height of the object, f 66;
 #X text 108 591 -frames <float>: number of frames per second, f 66;
 #X obj 24 249 saf.meter~ -width 50 -height 128 -frames 60 -inchs 4;
+#X obj 384 351 report-bug;
 #X connect 16 0 45 0;
 #X connect 17 0 16 0;
 #X connect 18 0 16 1;
