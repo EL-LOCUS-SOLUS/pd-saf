@@ -166,14 +166,13 @@ pd_add_external(saf.decoder~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/decoder~.c;${D
 
 # # ─────────────────────────────────────
 file(GLOB BINAURAL_TILDE_SOURCE "${saf_SOURCE_DIR}/../examples/src/ambi_bin/*.c")
-
 pd_add_external(saf.binaural~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/binaural~.c;${BINAURAL_TILDE_SOURCE}" LINK_LIBRARIES
                 saf)
 
 # ─────────────────────────────────────
-# file(GLOB PITCHSHIFTER_TILDE_SOURCE "${saf_SOURCE_DIR}/examples/src/pitch_shifter/*.c")
-# pd_add_external(saf.pitchshifter~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/pitchshifter~.c;${PITCHSHIFTER_TILDE_SOURCE}"
-# LINK_LIBRARIES saf)
+file(GLOB PITCHSHIFTER_TILDE_SOURCE "${saf_SOURCE_DIR}/../examples/src/pitch_shifter/*.c")
+pd_add_external(saf.pitchshifter~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/pitchshifter~.c;${PITCHSHIFTER_TILDE_SOURCE}"
+                LINK_LIBRARIES saf)
 
 # ─────────────────────────────────────
 file(GLOB CONVOLVER_TILDE_SOURCE "${saf_SOURCE_DIR}/../examples/src/multiconv/*.c")
@@ -181,12 +180,13 @@ pd_add_external(saf.multiconvolve~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/multicon
                 LINK_LIBRARIES saf)
 
 # ─────────────────────────────────────
-file(GLOB BINAURALIZER_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/${saf_SOURCE_DIR}/examples/src/binauraliser/*.c")
+file(GLOB BINAURALIZER_SOURCE "${saf_SOURCE_DIR}/../examples/src/binauraliser/*.c")
 pd_add_external(saf.binauraliser~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/binauraliser~.c;${BINAURALIZER_SOURCE}"
                 LINK_LIBRARIES saf)
 
-# file(GLOB SLDOA_TILDE_SOURCE "${saf_SOURCE_DIR}/examples/src/sldoa/*.c") pd_add_external(saf.sldoa~
-# "${CMAKE_CURRENT_SOURCE_DIR}/Sources/sldoa~.c;${SLDOA_TILDE_SOURCE}" LINK_LIBRARIES saf)
+# ─────────────────────────────────────
+file(GLOB SLDOA_TILDE_SOURCE "${saf_SOURCE_DIR}/../examples/src/sldoa/*.c")
+pd_add_external(saf.sldoa~ "${CMAKE_CURRENT_SOURCE_DIR}/Sources/sldoa~.c;${SLDOA_TILDE_SOURCE}" LINK_LIBRARIES saf)
 
 # ╭──────────────────────────────────────╮
 # │              DATA FILES              │

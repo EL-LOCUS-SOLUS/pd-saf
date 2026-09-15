@@ -1,4 +1,4 @@
-#N canvas 719 149 571 754 10;
+#N canvas 0 0 925 1129 10;
 #X declare -lib else;
 #X obj 308 5 cnv 15 250 40 empty empty empty 12 13 0 18 #7c7c7c #e0e4dc 0;
 #N canvas 382 141 749 319 (subpatch) 0;
@@ -103,15 +103,15 @@
 #X obj 453 51 declare -lib else;
 #X obj 6 408 cnv 3 550 3 empty empty inlets 8 12 0 13 #dcdcdc #000000 0;
 #X obj 111 414 cnv 17 3 80 empty empty 0 5 9 0 16 #dcdcdc #9c9c9c 0;
-#X obj 56 194 ../Sources/saf.panning -size 200 -nsources 4 -yzview 1 -nspeakers 4;
-#X obj 135 138 tgl 16 1 empty empty empty 0 -8 0 10 #fcfcfc #000000 #000000 1 1;
+#X obj 56 194 ../Sources/saf.panning -size 162 -nsources 4 -yzview 1 -nspeakers 10;
+#X obj 135 147 tgl 16 1 empty empty empty 0 -8 0 10 #fcfcfc #000000 #000000 1 1;
 #X obj 270 57 cnv 16 5 5 empty empty Required\ for\ graphics\ objects! 1 1 0 10 #ffffff #ff0400 0;
 #X text 22 81 The [saf.panning] is created to work with [saf.encoder~] e [saf.decoder~]. You can visualize what you are configuring in the objects. They receive all the messages that [saf.encoder~] and [saf.decoder~] \, but here you can visualize your configuration., f 79;
 #X obj 114 528 cnv 17 3 17 empty empty 1 5 9 0 16 #dcdcdc #9c9c9c 0;
 #X text 136 507 messages to be connected with [saf.encoder~];
 #X text 136 528 messages to be connected with [saf.decoder~];
-#X msg 201 159 numspeakers \$1;
-#X obj 201 138 nbx 5 14 -1e+37 1e+37 0 0 empty empty empty 0 -8 0 10 #fcfcfc #000000 #000000 0 256;
+#X msg 201 168 numspeakers \$1;
+#X obj 201 147 nbx 5 14 -1e+37 1e+37 0 0 empty empty empty 0 -8 0 10 #fcfcfc #000000 #000000 0 256;
 #X text 140 415 yzview <float> - on/off the yz view (0-1), f 50;
 #X text 140 434 source <float> <float> <float> - set position of the source.;
 #X text 140 452 numspeakers <float> - set number of speakers. (4-128);
@@ -124,9 +124,9 @@
 #X text 114 620 -size <float>: size of the object (default 200), f 66;
 #X text 114 648 -yzview <float>: on/off xzview (default 0), f 66;
 #X text 114 662 -nsources <float>: number of sources (defualt 1), f 66;
-#X msg 135 159 yzview \$1;
-#X msg 299 159 size \$1;
-#X obj 299 137 nbx 5 14 -1e+37 1e+37 0 0 empty empty empty 0 -8 0 10 #fcfcfc #000000 #000000 0 256;
+#X msg 135 168 yzview \$1;
+#X msg 299 168 size \$1;
+#X obj 299 146 nbx 5 14 -1e+37 1e+37 0 0 empty empty empty 0 -8 0 10 #fcfcfc #000000 #000000 0 256;
 #X connect 14 0 18 0;
 #X connect 19 0 39 0;
 #X connect 25 0 18 0;
